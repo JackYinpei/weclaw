@@ -90,6 +90,10 @@ func main() {
 	testAPI := api.NewTestAPI(cfg, userService, containerMgr, openclawClient)
 	testAPI.RegisterRoutes(r)
 
+	// Register OpenAI compatible API routes
+	openaiAPI := api.NewOpenAIAPI(cfg, userService, containerMgr, openclawClient)
+	openaiAPI.RegisterRoutes(r)
+
 	// Health check endpoint
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
