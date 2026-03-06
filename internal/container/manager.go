@@ -127,7 +127,11 @@ func (m *Manager) CreateContainer(ctx context.Context, userOpenID string, opencl
 		return nil, fmt.Errorf("failed to allocate port: %w", err)
 	}
 
-	containerName := fmt.Sprintf("weclaw-openclaw-%s", userOpenID[:12])
+	idPrefix := userOpenID
+	if len(idPrefix) > 12 {
+		idPrefix = idPrefix[:12]
+	}
+	containerName := fmt.Sprintf("weclaw-openclaw-%s", idPrefix)
 	gatewayToken := generateToken()
 
 	// Parse memory limit
@@ -325,7 +329,7 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, openclawCfg *conf
 		},
 		"agents": map[string]any{
 			"defaults": map[string]any{
-				"model": map[string]any{"primary": modelSpec},
+				"model":  map[string]any{"primary": modelSpec},
 				"models": map[string]any{modelSpec: map[string]any{}},
 			},
 		},
