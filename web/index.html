@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -28,10 +29,10 @@
 
         body {
             background-color: var(--bg-color);
-            background-image: 
-                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(339,49%,30%,0.2) 0, transparent 50%);
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0.2) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0.2) 0, transparent 50%);
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
@@ -235,8 +236,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .message.user {
@@ -271,14 +279,16 @@
             display: none;
             width: 20px;
             height: 20px;
-            border: 2px solid rgba(255,255,255,0.3);
+            border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             border-top-color: white;
             animation: spin 1s ease-in-out infinite;
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .toast {
@@ -291,7 +301,7 @@
             border: 1px solid var(--surface-border);
             border-radius: 8px;
             color: white;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             transform: translateY(100px);
             opacity: 0;
             transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -318,6 +328,7 @@
         }
     </style>
 </head>
+
 <body>
 
     <header>
@@ -331,7 +342,7 @@
         <!-- Left Column: User & Container Management -->
         <div class="glass-card">
             <h2 class="card-title">🔌 Connection & Container</h2>
-            
+
             <div class="form-group">
                 <label for="openidInput">User OpenID (Unique Identifier)</label>
                 <input type="text" id="openidInput" placeholder="e.g. user-123" value="demo-user-1">
@@ -368,14 +379,15 @@
         <!-- Right Column: Chat Interface -->
         <div class="glass-card">
             <h2 class="card-title">💬 API Test Chat</h2>
-            
+
             <div class="chat-container">
                 <div class="chat-messages" id="chatBox">
                     <div class="message ai">Welcome! Register a user to start testing the OpenClaw API container.</div>
                 </div>
-                
+
                 <div class="chat-input-area">
-                    <input type="text" id="messageInput" placeholder="Type a message to send..." onkeypress="if(event.key === 'Enter') sendMessage()">
+                    <input type="text" id="messageInput" placeholder="Type a message to send..."
+                        onkeypress="if(event.key === 'Enter') sendMessage()">
                     <button onclick="sendMessage()" id="sendBtn">Send</button>
                 </div>
             </div>
@@ -384,9 +396,102 @@
 
     <div id="toast" class="toast">Notification Message</div>
 
+    <!-- Auth Modal -->
+    <div id="authModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="glass-card" style="width: 400px; max-width: 90%;">
+            <h2 class="card-title" id="authTitle">Admin Login</h2>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="authUsername" placeholder="username">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="authPassword" placeholder="password"
+                    onkeypress="if(event.key === 'Enter') doAuth()">
+            </div>
+            <button onclick="doAuth()" id="authBtn">Login</button>
+            <div style="margin-top: 1rem; text-align: center;">
+                <a href="#" onclick="toggleAuthMode()" id="authToggleLink"
+                    style="color: var(--primary-color); text-decoration: none;">Don't have an account? Register
+                    here.</a>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const API_BASE = 'http://localhost:8080/api/test';
+        const AUTH_BASE = window.location.origin + '/api/auth';
+        const API_BASE = window.location.origin + '/api/test';
         let currentUser = null;
+        let authToken = localStorage.getItem('weclaw_token') || null;
+        let isLoginMode = true;
+
+        if (!authToken) {
+            document.getElementById('authModal').style.display = 'flex';
+        }
+
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('authTitle').innerText = isLoginMode ? 'Admin Login' : 'Admin Register';
+            document.getElementById('authBtn').innerText = isLoginMode ? 'Login' : 'Register';
+            document.getElementById('authToggleLink').innerText = isLoginMode ? "Don't have an account? Register here." : "Already have an account? Login here.";
+        }
+
+        async function doAuth() {
+            const u = document.getElementById('authUsername').value.trim();
+            const p = document.getElementById('authPassword').value.trim();
+            if (!u || !p) return showToast('Please enter username and password', 'error');
+
+            const endpoint = isLoginMode ? '/login' : '/register';
+            setLoading('authBtn', true);
+
+            try {
+                const res = await fetch(AUTH_BASE + endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    if (isLoginMode) {
+                        authToken = data.token;
+                        localStorage.setItem('weclaw_token', authToken);
+                        document.getElementById('authModal').style.display = 'none';
+                        showToast('Login successful!');
+                        // Auto-fill OpenID with the username to make testing easier
+                        document.getElementById('openidInput').value = u;
+                        currentUser = u;
+                        checkStatus();
+                    } else {
+                        showToast('Registration successful! You can now login.');
+                        toggleAuthMode();
+                    }
+                } else {
+                    showToast(data.error || 'Authentication failed', 'error');
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                setLoading('authBtn', false);
+            }
+        }
+
+        function getAuthHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': authToken ? 'Bearer ' + authToken : ''
+            };
+        }
+
+        function handleApiError(res) {
+            if (res.status === 401) {
+                localStorage.removeItem('weclaw_token');
+                authToken = null;
+                document.getElementById('authModal').style.display = 'flex';
+                throw new Error("Unauthorized. Please login again.");
+            }
+        }
 
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
@@ -420,7 +525,7 @@
 
         async function createContainer() {
             const openid = document.getElementById('openidInput').value.trim();
-            if(!openid) return showToast('Please enter an OpenID', 'error');
+            if (!openid) return showToast('Please enter an OpenID', 'error');
 
             setLoading('createBtn', true);
             const loader = document.getElementById('loader');
@@ -431,11 +536,12 @@
             try {
                 const res = await fetch(`${API_BASE}/register`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify({ openid })
                 });
+                if (!res.ok) handleApiError(res);
                 const data = await res.json();
-                
+
                 if (res.ok && (data.status === 'OK' || data.status === 'already_exists')) {
                     showToast(data.message || 'Container ready!');
                     currentUser = openid;
@@ -454,17 +560,18 @@
 
         async function checkStatus() {
             const openid = currentUser || document.getElementById('openidInput').value.trim();
-            if(!openid) return;
+            if (!openid) return;
 
             try {
-                const res = await fetch(`${API_BASE}/user/${openid}`);
+                const res = await fetch(`${API_BASE}/user/${openid}`, { headers: getAuthHeaders() });
                 if (!res.ok) {
+                    handleApiError(res);
                     document.getElementById('statusGrid').style.display = 'none';
                     document.getElementById('deleteBtn').style.display = 'none';
                     return;
                 }
                 const data = await res.json();
-                
+
                 document.getElementById('statusGrid').style.display = 'grid';
                 document.getElementById('deleteBtn').style.display = 'block';
 
@@ -486,21 +593,23 @@
         }
 
         async function deleteContainer() {
-            if(!currentUser) return;
-            
-            if(!confirm(`Are you sure you want to delete container for ${currentUser}?`)) return;
+            if (!currentUser) return;
+
+            if (!confirm(`Are you sure you want to delete container for ${currentUser}?`)) return;
 
             try {
                 const res = await fetch(`${API_BASE}/user/${currentUser}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
                 });
+                if (!res.ok) handleApiError(res);
                 if (res.ok) {
                     showToast('Container deleted');
                     document.getElementById('statusGrid').style.display = 'none';
                     document.getElementById('deleteBtn').style.display = 'none';
                     currentUser = null;
                 }
-            } catch(err) {
+            } catch (err) {
                 showToast(err.message, 'error');
             }
         }
@@ -509,9 +618,9 @@
             const openid = document.getElementById('openidInput').value.trim();
             const input = document.getElementById('messageInput');
             const text = input.value.trim();
-            
-            if(!openid) return showToast('Please set OpenID and create container first', 'error');
-            if(!text) return;
+
+            if (!openid) return showToast('Please set OpenID and create container first', 'error');
+            if (!text) return;
 
             appendMessage(text, 'user');
             input.value = '';
@@ -523,23 +632,24 @@
             try {
                 const res = await fetch(`${API_BASE}/send`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify({ openid, message: text })
                 });
+                if (!res.ok) handleApiError(res);
                 const data = await res.json();
-                
+
                 if (res.ok && data.status === 'OK') {
                     // Check if raw_response is empty or just brackets
                     const resp = data.raw_response;
                     if (!resp || resp.trim() === '' || resp.includes('[无响应内容]')) {
-                         appendMessage('⚠️ OpenClaw returned empty response. (Raw: ' + resp + ')', 'ai');
+                        appendMessage('⚠️ OpenClaw returned empty response. (Raw: ' + resp + ')', 'ai');
                     } else {
-                         appendMessage(resp, 'ai');
+                        appendMessage(resp, 'ai');
                     }
                 } else {
                     appendMessage(`Error: ${data.error || 'Request failed'}`, 'ai');
                 }
-            } catch(err) {
+            } catch (err) {
                 appendMessage(`Network Error: ${err.message}`, 'ai');
             } finally {
                 setLoading('sendBtn', false);
@@ -548,4 +658,5 @@
         }
     </script>
 </body>
+
 </html>

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/qcy/weclaw/internal/account"
 	"github.com/qcy/weclaw/internal/api"
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
@@ -85,6 +86,11 @@ func main() {
 
 	// Register routes
 	wechatHandler.RegisterRoutes(r)
+
+	// Register Auth API routes
+	accountRepo := account.NewSQLiteRepository(db.DB())
+	authAPI := api.NewAuthAPI(accountRepo)
+	authAPI.RegisterRoutes(r)
 
 	// Register test API routes
 	testAPI := api.NewTestAPI(cfg, userService, containerMgr, openclawClient)

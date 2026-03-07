@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/qcy/weclaw/internal/config"
@@ -207,6 +208,12 @@ func (r *MessageRouter) handleText(msg *wechat.IncomingMessage) *wechat.ReplyMes
 		defer cancel()
 
 		if err := r.containerMgr.StartContainer(ctx, u.ContainerID); err != nil {
+			if strings.Contains(err.Error(), "No such container") {
+				logger.Warn("Container missing on wakeup, recreating...", "user", openID)
+				go r.createContainerForUser(openID)
+				return wechat.NewTextReply(msg.FromUserName, msg.ToUserName,
+					"🔄 发现您的 AI 助手状态异常，正在为您重新初始化，请稍后近1分钟时再次发送消息。")
+			}
 			logger.Error("Failed to wake up container", "user", openID, "error", err)
 			return wechat.NewTextReply(msg.FromUserName, msg.ToUserName,
 				"❌ AI 助手唤醒失败，请稍后再试。")

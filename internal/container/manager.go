@@ -257,6 +257,10 @@ func (m *Manager) StopContainer(ctx context.Context, containerID string) error {
 	timeout := 10 // seconds
 	stopOptions := container.StopOptions{Timeout: &timeout}
 	if err := m.cli.ContainerStop(ctx, containerID, stopOptions); err != nil {
+		if client.IsErrNotFound(err) {
+			logger.Warn("Container not found, treating as stopped", "container_id", containerID[:12])
+			return nil
+		}
 		return fmt.Errorf("failed to stop container %s: %w", containerID[:12], err)
 	}
 	logger.Info("Container stopped", "container_id", containerID[:12])

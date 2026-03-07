@@ -40,6 +40,7 @@ func NewTestAPI(
 // RegisterRoutes registers test API routes.
 func (t *TestAPI) RegisterRoutes(r *gin.Engine) {
 	testGroup := r.Group("/api/test")
+	testGroup.Use(AuthMiddleware()) // Protect test API routes
 	{
 		testGroup.GET("/docker", t.TestDocker)
 		testGroup.POST("/register", t.TestRegister)
