@@ -331,6 +331,9 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, openclawCfg *conf
 				"dangerouslyAllowHostHeaderOriginFallback": true,
 			},
 		},
+		"tools": map[string]any{
+			"profile": openclawCfg.ToolsProfile,
+		},
 		"agents": map[string]any{
 			"defaults": map[string]any{
 				"model":  map[string]any{"primary": modelSpec},

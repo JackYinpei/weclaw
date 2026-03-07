@@ -33,15 +33,15 @@ type WeChatConfig struct {
 
 // DockerConfig holds Docker container management configuration.
 type DockerConfig struct {
-	MaxContainers          int    `mapstructure:"max_containers"`
-	PortRangeStart         int    `mapstructure:"port_range_start"`
-	PortRangeEnd           int    `mapstructure:"port_range_end"`
-	IdleTimeoutMinutes     int    `mapstructure:"idle_timeout_minutes"`
-	MemoryLimit            string `mapstructure:"memory_limit"`
-	CPULimit               string `mapstructure:"cpu_limit"`
-	NetworkName            string `mapstructure:"network_name"`
-	OpenClawImage          string `mapstructure:"openclaw_image"`
-	OpenClawHostDataDir    string `mapstructure:"openclaw_host_data_dir"` // 宿主机目录，用于挂载每个容器的 ~/.openclaw（配置+会话等）
+	MaxContainers       int    `mapstructure:"max_containers"`
+	PortRangeStart      int    `mapstructure:"port_range_start"`
+	PortRangeEnd        int    `mapstructure:"port_range_end"`
+	IdleTimeoutMinutes  int    `mapstructure:"idle_timeout_minutes"`
+	MemoryLimit         string `mapstructure:"memory_limit"`
+	CPULimit            string `mapstructure:"cpu_limit"`
+	NetworkName         string `mapstructure:"network_name"`
+	OpenClawImage       string `mapstructure:"openclaw_image"`
+	OpenClawHostDataDir string `mapstructure:"openclaw_host_data_dir"` // 宿主机目录，用于挂载每个容器的 ~/.openclaw（配置+会话等）
 }
 
 // OpenClawConfig holds OpenClaw integration configuration.
@@ -50,6 +50,7 @@ type OpenClawConfig struct {
 	BaseURL       string `mapstructure:"base_url"`
 	ModelProvider string `mapstructure:"model_provider"`
 	ModelName     string `mapstructure:"model_name"`
+	ToolsProfile  string `mapstructure:"tools_profile"`
 }
 
 // DatabaseConfig holds database configuration.
@@ -79,6 +80,7 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("docker.network_name", "weclaw-net")
 	v.SetDefault("docker.openclaw_image", "ghcr.io/openclaw/openclaw:latest")
 	v.SetDefault("docker.openclaw_host_data_dir", "./data/weclaw-openclaw")
+	v.SetDefault("openclaw.tools_profile", "full")
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "./data/weclaw.db")
 	v.SetDefault("quota.max_messages_per_day", 50)
