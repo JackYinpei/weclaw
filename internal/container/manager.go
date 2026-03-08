@@ -21,6 +21,13 @@ import (
 	"github.com/qcy/weclaw/pkg/logger"
 )
 
+// OpenClawExtras holds user-specific skill and MCP configurations to inject into openclaw.json.
+type OpenClawExtras struct {
+	Skills    map[string]map[string]any // skill-name -> {enabled, config...}
+	SkillDirs []string                  // skills.load.extraDirs
+	MCPs      map[string]map[string]any // mcp-name -> {command, args, env}
+}
+
 // ContainerInfo holds information about a user's OpenClaw container.
 type ContainerInfo struct {
 	ContainerID   string
@@ -34,12 +41,13 @@ type ContainerInfo struct {
 type Manager struct {
 	cli      *client.Client
 	cfg      *config.DockerConfig
+	kbCfg    *config.KnowledgeBaseConfig
 	portPool *PortPool
 	mu       sync.Mutex
 }
 
 // NewManager creates a new container manager.
-func NewManager(cfg *config.DockerConfig) (*Manager, error) {
+func NewManager(cfg *config.DockerConfig, kbCfg *config.KnowledgeBaseConfig) (*Manager, error) {
 	cli, err := createDockerClient()
 	if err != nil {
 		return nil, err
@@ -50,6 +58,7 @@ func NewManager(cfg *config.DockerConfig) (*Manager, error) {
 	return &Manager{
 		cli:      cli,
 		cfg:      cfg,
+		kbCfg:    kbCfg,
 		portPool: NewPortPool(cfg.PortRangeStart, cfg.PortRangeEnd),
 	}, nil
 }
@@ -117,7 +126,7 @@ func pingDocker(cli *client.Client) error {
 }
 
 // CreateContainer creates a new OpenClaw container for a user.
-func (m *Manager) CreateContainer(ctx context.Context, userOpenID string, openclawCfg *config.OpenClawConfig) (*ContainerInfo, error) {
+func (m *Manager) CreateContainer(ctx context.Context, userOpenID string, openclawCfg *config.OpenClawConfig, extras *OpenClawExtras) (*ContainerInfo, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -161,8 +170,8 @@ func (m *Manager) CreateContainer(ctx context.Context, userOpenID string, opencl
 		return nil, fmt.Errorf("failed to ensure image: %w", err)
 	}
 
-	// 在宿主机创建该容器专属的 .openclaw 目录并写入 openclaw.json（gateway 配置 + 模型配置）
-	hostOpenClawDir, err := m.prepareOpenClawHostDir(containerName, openclawCfg)
+	// 在宿主机创建该容器专属的 .openclaw 目录并写入 openclaw.json（gateway 配置 + 模型配置 + skills + MCP）
+	hostOpenClawDir, err := m.prepareOpenClawHostDir(containerName, openclawCfg, extras)
 	if err != nil {
 		m.portPool.Release(port)
 		return nil, fmt.Errorf("failed to prepare OpenClaw host dir: %w", err)
@@ -208,8 +217,8 @@ func (m *Manager) CreateContainer(ctx context.Context, userOpenID string, opencl
 					},
 				},
 			},
-			// 挂载宿主机目录到容器 ~/.openclaw，内含 config.json5（dangerouslyAllowHostHeaderOriginFallback 等）
-			Binds: []string{hostOpenClawDir + ":/home/node/.openclaw"},
+			// 挂载宿主机目录到容器 ~/.openclaw，内含 openclaw.json（配置 + skills + MCP）
+			Binds: m.buildBinds(hostOpenClawDir),
 			Resources: container.Resources{
 				Memory:   memoryBytes,
 				NanoCPUs: nanoCPUs,
@@ -310,8 +319,8 @@ func (m *Manager) IsContainerRunning(ctx context.Context, containerID string) (b
 }
 
 // prepareOpenClawHostDir 在宿主机创建容器专属目录并写入 openclaw.json，返回用于 bind mount 的绝对路径。
-// openclaw.json 包含 gateway LAN 绑定配置和模型 provider/model 设置。
-func (m *Manager) prepareOpenClawHostDir(containerName string, openclawCfg *config.OpenClawConfig) (string, error) {
+// openclaw.json 包含 gateway LAN 绑定配置、模型 provider/model 设置、skills 和 MCP server 配置。
+func (m *Manager) prepareOpenClawHostDir(containerName string, openclawCfg *config.OpenClawConfig, extras *OpenClawExtras) (string, error) {
 	baseDir := m.cfg.OpenClawHostDataDir
 	if baseDir == "" {
 		baseDir = "./data/weclaw-openclaw"
@@ -354,6 +363,27 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, openclawCfg *conf
 		},
 	}
 
+	// Inject skills configuration
+	if extras != nil && len(extras.Skills) > 0 {
+		skillsSection := map[string]any{
+			"entries": extras.Skills,
+		}
+		if len(extras.SkillDirs) > 0 {
+			skillsSection["load"] = map[string]any{
+				"extraDirs": extras.SkillDirs,
+				"watch":     true,
+			}
+		}
+		cfgMap["skills"] = skillsSection
+	}
+
+	// Inject MCP server configuration
+	if extras != nil && len(extras.MCPs) > 0 {
+		cfgMap["provider"] = map[string]any{
+			"mcpServers": extras.MCPs,
+		}
+	}
+
 	configBytes, err := json.Marshal(cfgMap)
 	if err != nil {
 		return "", fmt.Errorf("marshal openclaw config: %w", err)
@@ -368,6 +398,16 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, openclawCfg *conf
 	if err != nil {
 		return "", fmt.Errorf("abs path %s: %w", hostDir, err)
 	}
+	// Write AGENTS.md to inform the agent about shared knowledge base
+	if m.kbCfg != nil && m.kbCfg.ContainerMount != "" {
+		agentsMD := fmt.Sprintf("# Shared Knowledge Base\n\n"+
+			"A shared knowledge base is mounted at `%s` (read-only).\n"+
+			"When users ask questions, check this directory for relevant documents and reference materials.\n"+
+			"Use file reading tools to access these files when needed.\n", m.kbCfg.ContainerMount)
+		agentsPath := filepath.Join(hostDir, "AGENTS.md")
+		_ = os.WriteFile(agentsPath, []byte(agentsMD), 0644)
+	}
+
 	logger.Debug("Prepared OpenClaw host dir", "path", absDir, "model", modelSpec)
 	return absDir, nil
 }
@@ -396,6 +436,63 @@ func (m *Manager) ensureImage(ctx context.Context) error {
 // Close cleans up the Docker client.
 func (m *Manager) Close() error {
 	return m.cli.Close()
+}
+
+// buildBinds constructs the Binds list for container creation, including shared knowledge directory.
+func (m *Manager) buildBinds(hostOpenClawDir string) []string {
+	binds := []string{hostOpenClawDir + ":/home/node/.openclaw"}
+	if m.kbCfg != nil && m.kbCfg.HostDir != "" {
+		absKBDir, err := filepath.Abs(m.kbCfg.HostDir)
+		if err == nil {
+			mount := m.kbCfg.ContainerMount
+			if mount == "" {
+				mount = "/home/node/shared-knowledge"
+			}
+			binds = append(binds, absKBDir+":"+mount+":ro")
+		}
+	}
+	return binds
+}
+
+// EnsureKnowledgeDir creates the shared knowledge host directory if it doesn't exist.
+func (m *Manager) EnsureKnowledgeDir() error {
+	if m.kbCfg == nil || m.kbCfg.HostDir == "" {
+		return nil
+	}
+	if err := os.MkdirAll(m.kbCfg.HostDir, 0755); err != nil {
+		return fmt.Errorf("failed to create knowledge dir %s: %w", m.kbCfg.HostDir, err)
+	}
+	logger.Info("Shared knowledge directory ready", "path", m.kbCfg.HostDir)
+	return nil
+}
+
+// RegenerateConfig regenerates openclaw.json for an existing container, then restarts it.
+func (m *Manager) RegenerateConfig(
+	ctx context.Context,
+	containerName string,
+	containerID string,
+	openclawCfg *config.OpenClawConfig,
+	extras *OpenClawExtras,
+) error {
+	_, err := m.prepareOpenClawHostDir(containerName, openclawCfg, extras)
+	if err != nil {
+		return fmt.Errorf("failed to regenerate config: %w", err)
+	}
+
+	// Restart container to pick up new config
+	timeout := 10
+	stopOpts := container.StopOptions{Timeout: &timeout}
+	if err := m.cli.ContainerStop(ctx, containerID, stopOpts); err != nil {
+		if !client.IsErrNotFound(err) {
+			return fmt.Errorf("failed to stop container for restart: %w", err)
+		}
+	}
+	if err := m.cli.ContainerStart(ctx, containerID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to restart container: %w", err)
+	}
+
+	logger.Info("Container config regenerated and restarted", "container", containerName)
+	return nil
 }
 
 // generateToken generates a random token for the OpenClaw gateway.

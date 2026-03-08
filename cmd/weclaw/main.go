@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/qcy/weclaw/internal/account"
 	"github.com/qcy/weclaw/internal/api"
+	"github.com/qcy/weclaw/internal/catalog"
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
 	"github.com/qcy/weclaw/internal/openclaw"
@@ -45,20 +46,26 @@ func main() {
 	logger.Info("Database initialized")
 
 	// Initialize Docker container manager
-	containerMgr, err := container.NewManager(&cfg.Docker)
+	containerMgr, err := container.NewManager(&cfg.Docker, &cfg.KnowledgeBase)
 	if err != nil {
 		logger.Fatal("Failed to initialize Docker manager", "error", err)
 	}
 	defer containerMgr.Close()
 	logger.Info("Docker manager initialized")
 
+	// Ensure shared knowledge directory exists
+	if err := containerMgr.EnsureKnowledgeDir(); err != nil {
+		logger.Fatal("Failed to ensure shared knowledge directory", "error", err)
+	}
+
 	// Initialize services
 	userService := user.NewService(db.DB(), &cfg.Quota)
+	catalogService := catalog.NewService(db.DB())
 	openclawClient := openclaw.NewClient()
 	wechatAPI := wechat.NewAPI(&cfg.WeChat)
 
 	// Initialize message router
-	msgRouter := router.NewMessageRouter(userService, containerMgr, openclawClient, wechatAPI, cfg)
+	msgRouter := router.NewMessageRouter(userService, containerMgr, openclawClient, wechatAPI, cfg, catalogService)
 
 	// Initialize WeChat handler
 	wechatHandler := wechat.NewHandler(&cfg.WeChat, msgRouter)
@@ -99,6 +106,10 @@ func main() {
 	// Register OpenAI compatible API routes
 	openaiAPI := api.NewOpenAIAPI(cfg, userService, containerMgr, openclawClient)
 	openaiAPI.RegisterRoutes(r)
+
+	// Register Store API routes (skill/MCP store + user config)
+	storeAPI := api.NewStoreAPI(cfg, catalogService, userService, containerMgr)
+	storeAPI.RegisterRoutes(r)
 
 	// Health check endpoint
 	r.GET("/healthz", func(c *gin.Context) {

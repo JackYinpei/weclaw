@@ -130,6 +130,25 @@ func (s *Service) LogMessage(userID uint, direction, msgType, content string) er
 	return result.Error
 }
 
+// GetMessageHistory returns recent messages for a user, ordered by time ascending.
+func (s *Service) GetMessageHistory(userID uint, limit int) ([]MessageLog, error) {
+	var logs []MessageLog
+	if limit <= 0 {
+		limit = 50
+	}
+	// Subquery: get the last N messages (desc), then reverse to asc order
+	result := s.db.Where("user_id = ?", userID).
+		Order("created_at DESC").Limit(limit).Find(&logs)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	// Reverse to chronological order
+	for i, j := 0, len(logs)-1; i < j; i, j = i+1, j-1 {
+		logs[i], logs[j] = logs[j], logs[i]
+	}
+	return logs, nil
+}
+
 // Disable marks a user as disabled (e.g., when they unsubscribe).
 func (s *Service) Disable(openID string) error {
 	return s.UpdateStatus(openID, StatusDisabled)

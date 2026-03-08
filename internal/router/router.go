@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/qcy/weclaw/internal/catalog"
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
 	"github.com/qcy/weclaw/internal/openclaw"
@@ -22,6 +23,7 @@ type MessageRouter struct {
 	openclawClient *openclaw.Client
 	wechatAPI      *wechat.API
 	cfg            *config.Config
+	catalogService *catalog.Service
 }
 
 // NewMessageRouter creates a new message router.
@@ -31,6 +33,7 @@ func NewMessageRouter(
 	openclawClient *openclaw.Client,
 	wechatAPI *wechat.API,
 	cfg *config.Config,
+	catalogService *catalog.Service,
 ) *MessageRouter {
 	return &MessageRouter{
 		userService:    userService,
@@ -38,6 +41,7 @@ func NewMessageRouter(
 		openclawClient: openclawClient,
 		wechatAPI:      wechatAPI,
 		cfg:            cfg,
+		catalogService: catalogService,
 	}
 }
 
@@ -276,7 +280,24 @@ func (r *MessageRouter) createContainerForUser(openID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	info, err := r.containerMgr.CreateContainer(ctx, openID, &r.cfg.OpenClaw)
+	// Build extras from user's skill/MCP selections
+	var extras *container.OpenClawExtras
+	u, err := r.userService.FindByOpenID(openID)
+	if err == nil && u != nil {
+		skills, skillDirs, mcps, buildErr := r.catalogService.BuildOpenClawExtras(u.ID)
+		if buildErr != nil {
+			logger.Warn("Failed to build OpenClaw extras, creating without skills/MCP",
+				"user", openID, "error", buildErr)
+		} else if len(skills) > 0 || len(mcps) > 0 {
+			extras = &container.OpenClawExtras{
+				Skills:    skills,
+				SkillDirs: skillDirs,
+				MCPs:      mcps,
+			}
+		}
+	}
+
+	info, err := r.containerMgr.CreateContainer(ctx, openID, &r.cfg.OpenClaw, extras)
 	if err != nil {
 		logger.Error("Failed to create container for user",
 			"user", openID, "error", err)

@@ -46,6 +46,7 @@ func (t *TestAPI) RegisterRoutes(r *gin.Engine) {
 		testGroup.POST("/register", t.TestRegister)
 		testGroup.POST("/send", t.TestSendMessage)
 		testGroup.GET("/user/:openid", t.GetUser)
+		testGroup.GET("/user/:openid/messages", t.GetMessages)
 		testGroup.GET("/users", t.ListUsers)
 		testGroup.DELETE("/user/:openid", t.DeleteUser)
 	}
@@ -70,7 +71,7 @@ func (t *TestAPI) TestDocker(c *gin.Context) {
 	testOpenID := fmt.Sprintf("test-docker-%d", time.Now().UnixMilli())
 	logger.Info("Testing Docker: creating test container", "test_id", testOpenID)
 
-	info, err := t.containerMgr.CreateContainer(ctx, testOpenID, &t.cfg.OpenClaw)
+	info, err := t.containerMgr.CreateContainer(ctx, testOpenID, &t.cfg.OpenClaw, nil)
 	if err != nil {
 		results["container_created"] = false
 		results["container_error"] = err.Error()
@@ -190,7 +191,7 @@ func (t *TestAPI) TestRegister(c *gin.Context) {
 
 	logger.Info("Test register: creating container", "openid", openID)
 
-	info, err := t.containerMgr.CreateContainer(ctx, openID, &t.cfg.OpenClaw)
+	info, err := t.containerMgr.CreateContainer(ctx, openID, &t.cfg.OpenClaw, nil)
 	if err != nil {
 		results["status"] = "PARTIAL"
 		results["container_error"] = err.Error()
@@ -335,6 +336,35 @@ func (t *TestAPI) GetUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"user":              u,
 		"container_running": containerRunning,
+	})
+}
+
+// GetMessages returns message history for a user.
+// GET /api/test/user/:openid/messages?limit=50
+func (t *TestAPI) GetMessages(c *gin.Context) {
+	openID := c.Param("openid")
+
+	u, err := t.userService.FindByOpenID(openID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "openid": openID})
+		return
+	}
+
+	limit := 50
+	if l := c.Query("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+
+	messages, err := t.userService.GetMessageHistory(u.ID, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"openid":   openID,
+		"count":    len(messages),
+		"messages": messages,
 	})
 }
 

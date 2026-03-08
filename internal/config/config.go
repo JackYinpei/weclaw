@@ -9,12 +9,13 @@ import (
 
 // Config holds all configuration for the application.
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	WeChat   WeChatConfig   `mapstructure:"wechat"`
-	Docker   DockerConfig   `mapstructure:"docker"`
-	OpenClaw OpenClawConfig `mapstructure:"openclaw"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Quota    QuotaConfig    `mapstructure:"quota"`
+	Server        ServerConfig        `mapstructure:"server"`
+	WeChat        WeChatConfig        `mapstructure:"wechat"`
+	Docker        DockerConfig        `mapstructure:"docker"`
+	OpenClaw      OpenClawConfig      `mapstructure:"openclaw"`
+	Database      DatabaseConfig      `mapstructure:"database"`
+	Quota         QuotaConfig         `mapstructure:"quota"`
+	KnowledgeBase KnowledgeBaseConfig `mapstructure:"knowledge_base"`
 }
 
 // ServerConfig holds HTTP server configuration.
@@ -64,6 +65,12 @@ type QuotaConfig struct {
 	MaxMessagesPerDay int `mapstructure:"max_messages_per_day"`
 }
 
+// KnowledgeBaseConfig holds shared knowledge base configuration.
+type KnowledgeBaseConfig struct {
+	HostDir        string `mapstructure:"host_dir"`        // 宿主机共享知识库目录
+	ContainerMount string `mapstructure:"container_mount"` // 容器内挂载路径
+}
+
 // Load reads configuration from file and environment variables.
 func Load(configPath string) (*Config, error) {
 	v := viper.New()
@@ -81,6 +88,8 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("docker.openclaw_image", "ghcr.io/openclaw/openclaw:latest")
 	v.SetDefault("docker.openclaw_host_data_dir", "./data/weclaw-openclaw")
 	v.SetDefault("openclaw.tools_profile", "full")
+	v.SetDefault("knowledge_base.host_dir", "./data/shared-knowledge")
+	v.SetDefault("knowledge_base.container_mount", "/home/node/shared-knowledge")
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "./data/weclaw.db")
 	v.SetDefault("quota.max_messages_per_day", 50)

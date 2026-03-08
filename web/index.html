@@ -1,250 +1,544 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenClaw Manager</title>
+    <title>WeClaw Dashboard</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
         :root {
             --bg-color: #0f172a;
             --surface-color: rgba(30, 41, 59, 0.7);
-            --surface-border: rgba(255, 255, 255, 0.1);
+            --surface-solid: #1e293b;
+            --surface-border: rgba(255, 255, 255, 0.08);
+            --surface-hover: rgba(255, 255, 255, 0.05);
             --primary-color: #3b82f6;
             --primary-hover: #2563eb;
+            --primary-dim: rgba(59, 130, 246, 0.15);
             --success-color: #10b981;
+            --success-dim: rgba(16, 185, 129, 0.15);
             --danger-color: #ef4444;
+            --danger-dim: rgba(239, 68, 68, 0.15);
+            --warning-color: #f59e0b;
+            --warning-dim: rgba(245, 158, 11, 0.15);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --sidebar-width: 280px;
+            --sidebar-collapsed: 0px;
+            --header-height: 56px;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', -apple-system, sans-serif;
         }
 
         body {
             background-color: var(--bg-color);
-            background-image:
-                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
-                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0.2) 0, transparent 50%),
-                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0.2) 0, transparent 50%);
             color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
         }
 
+        /* === HEADER === */
         header {
-            padding: 2rem 5%;
+            height: var(--header-height);
+            padding: 0 1rem;
             border-bottom: 1px solid var(--surface-border);
-            background: rgba(15, 23, 42, 0.5);
-            backdrop-filter: blur(10px);
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .sidebar-toggle {
+            background: none;
+            border: 1px solid var(--surface-border);
+            color: var(--text-muted);
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+        }
+
+        .sidebar-toggle:hover {
+            background: var(--surface-hover);
+            color: var(--text-main);
         }
 
         h1 {
-            font-size: 1.5rem;
+            font-size: 1.1rem;
             font-weight: 600;
             background: linear-gradient(135deg, #60a5fa, #a78bfa);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        main {
-            flex: 1;
-            padding: 2rem 5%;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            max-width: 1400px;
-            margin: 0 auto;
-            width: 100%;
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
-        .glass-card {
+        .user-badge {
+            font-size: 0.8rem;
+            color: var(--text-muted);
             background: var(--surface-color);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
             border: 1px solid var(--surface-border);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .glass-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-        }
-
-        .card-title {
-            font-size: 1.25rem;
+        .user-badge span {
+            color: var(--primary-color);
             font-weight: 500;
-            margin-bottom: 1.5rem;
+        }
+
+        /* === MAIN LAYOUT === */
+        .app-layout {
+            display: flex;
+            height: calc(100vh - var(--header-height));
+        }
+
+        /* === SIDEBAR === */
+        .sidebar {
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            border-right: 1px solid var(--surface-border);
+            background: rgba(15, 23, 42, 0.6);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.25s ease, min-width 0.25s ease, opacity 0.25s ease;
+            overflow: hidden;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            min-width: 0;
+            border-right: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--surface-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-header h3 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .store-btn {
+            background: var(--primary-dim);
+            color: var(--primary-color);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .store-btn:hover {
+            background: rgba(59, 130, 246, 0.25);
+        }
+
+        .store-btn.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+        }
+
+        .sidebar-section {
+            margin-bottom: 1.25rem;
+        }
+
+        .sidebar-section-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            padding: 0 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .extension-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: background 0.15s;
+            cursor: default;
+        }
+
+        .extension-item:hover {
+            background: var(--surface-hover);
+        }
+
+        .extension-info {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            min-width: 0;
         }
 
-        .form-group {
-            margin-bottom: 1rem;
+        .extension-icon {
+            font-size: 1.1rem;
+            flex-shrink: 0;
         }
 
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: var(--text-muted);
-            font-size: 0.875rem;
+        .extension-name {
+            font-size: 0.82rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        input {
+        /* Toggle switch */
+        .toggle-switch {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--text-dim);
+            border-radius: 10px;
+            transition: 0.2s;
+        }
+
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--success-color);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(16px);
+        }
+
+        .sidebar-footer {
+            padding: 0.75rem;
+            border-top: 1px solid var(--surface-border);
+        }
+
+        .apply-btn {
             width: 100%;
-            padding: 0.75rem 1rem;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--surface-border);
-            border-radius: 8px;
-            color: var(--text-main);
-            font-size: 1rem;
-            outline: none;
-            transition: border-color 0.3s ease;
-        }
-
-        input:focus {
-            border-color: var(--primary-color);
-        }
-
-        button {
             background: var(--primary-color);
             color: white;
             border: none;
-            padding: 0.75rem 1.5rem;
+            padding: 0.6rem;
             border-radius: 8px;
-            font-size: 1rem;
+            font-size: 0.85rem;
             font-weight: 500;
             cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.1s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            width: 100%;
+            transition: all 0.2s;
         }
 
-        button:hover {
+        .apply-btn:hover {
             background: var(--primary-hover);
         }
 
-        button:active {
-            transform: scale(0.98);
+        .apply-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
-        button.danger {
-            background: var(--danger-color);
+        /* === STORE PANEL === */
+        .store-panel {
+            flex: 1;
+            border-right: 1px solid var(--surface-border);
+            display: none;
+            flex-direction: column;
+            background: rgba(15, 23, 42, 0.3);
         }
 
-        button.danger:hover {
-            background: #dc2626;
-        }
-
-        .btn-group {
+        .store-panel.visible {
             display: flex;
+        }
+
+        .store-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--surface-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .store-tabs {
+            display: flex;
+            gap: 0.25rem;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.2rem;
+            border-radius: 8px;
+        }
+
+        .store-tab {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.4rem 0.9rem;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .store-tab.active {
+            background: var(--surface-solid);
+            color: var(--text-main);
+        }
+
+        .store-tab:hover:not(.active) {
+            color: var(--text-main);
+        }
+
+        .store-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+
+        .store-close:hover {
+            color: var(--text-main);
+        }
+
+        .store-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem;
+        }
+
+        .store-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
             gap: 1rem;
-            margin-top: 1rem;
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
+        .store-card {
+            background: var(--surface-color);
+            border: 1px solid var(--surface-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.2s;
+        }
+
+        .store-card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .card-icon {
+            font-size: 1.8rem;
+            flex-shrink: 0;
+        }
+
+        .card-meta {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .card-name {
+            font-size: 0.95rem;
             font-weight: 600;
-            text-transform: uppercase;
+            margin-bottom: 0.15rem;
         }
 
-        .status-active {
-            background: rgba(16, 185, 129, 0.2);
+        .card-category {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-bottom: 1rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-action {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .card-action.install {
+            background: var(--primary-dim);
+            color: var(--primary-color);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .card-action.install:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .card-action.installed {
+            background: var(--success-dim);
             color: var(--success-color);
             border: 1px solid rgba(16, 185, 129, 0.3);
         }
 
-        .status-offline {
-            background: rgba(239, 68, 68, 0.2);
+        .card-action.installed:hover {
+            background: var(--danger-dim);
             color: var(--danger-color);
-            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.3);
         }
 
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1rem;
-            margin-top: 1rem;
-            margin-bottom: 1.5rem;
+        .store-empty {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-dim);
         }
 
-        .info-item {
-            background: rgba(0, 0, 0, 0.2);
-            padding: 1rem;
-            border-radius: 8px;
-            border: 1px solid var(--surface-border);
+        .store-empty-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
         }
 
-        .info-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 0.25rem;
-        }
-
-        .info-value {
-            font-size: 0.875rem;
-            word-break: break-all;
-            font-family: monospace;
-        }
-
-        .chat-container {
+        /* === CHAT PANEL === */
+        .chat-panel {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            height: 500px;
+            min-width: 360px;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 0.75rem 1.25rem;
+            border-bottom: 1px solid var(--surface-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .chat-header h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .chat-status {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.75rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-dim);
+        }
+
+        .status-dot.active {
+            background: var(--success-color);
+            box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
         }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 8px;
-            border: 1px solid var(--surface-border);
-            margin-bottom: 1rem;
+            padding: 1.25rem;
             display: flex;
             flex-direction: column;
             gap: 1rem;
+            min-height: 0;
         }
 
         .message {
-            max-width: 80%;
+            max-width: 85%;
             padding: 0.75rem 1rem;
             border-radius: 12px;
             font-size: 0.875rem;
-            line-height: 1.5;
+            line-height: 1.6;
             animation: fadeIn 0.3s ease;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
 
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .message.user {
@@ -256,151 +550,400 @@
 
         .message.ai {
             align-self: flex-start;
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--surface-color);
             color: var(--text-main);
+            border: 1px solid var(--surface-border);
             border-bottom-left-radius: 4px;
         }
 
+        .message.system {
+            align-self: center;
+            background: var(--warning-dim);
+            color: var(--warning-color);
+            font-size: 0.8rem;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
         .chat-input-area {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--surface-border);
             display: flex;
             gap: 0.5rem;
+            flex-shrink: 0;
         }
 
         .chat-input-area input {
             flex: 1;
+            padding: 0.7rem 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--surface-border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.2s;
         }
 
-        .chat-input-area button {
-            width: auto;
-            padding: 0 1.5rem;
+        .chat-input-area input:focus {
+            border-color: var(--primary-color);
         }
 
-        #loader {
-            display: none;
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
+        .chat-send-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0 1.2rem;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
         }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
+        .chat-send-btn:hover {
+            background: var(--primary-hover);
         }
 
+        .chat-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* === SETUP PANEL (shown when no user selected) === */
+        .setup-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+            padding: 2rem;
+            flex: 1;
+        }
+
+        .setup-card {
+            background: var(--surface-color);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .setup-card h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.65rem 0.85rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--surface-border);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .setup-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.25rem;
+        }
+
+        .setup-actions button {
+            flex: 1;
+            padding: 0.65rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid var(--surface-border) !important;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        /* === TOAST === */
         .toast {
             position: fixed;
             bottom: 20px;
             right: 20px;
-            padding: 1rem 1.5rem;
-            background: var(--surface-color);
-            backdrop-filter: blur(10px);
+            padding: 0.75rem 1.25rem;
+            background: var(--surface-solid);
             border: 1px solid var(--surface-border);
-            border-radius: 8px;
+            border-radius: 10px;
             color: white;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            font-size: 0.85rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
             transform: translateY(100px);
             opacity: 0;
             transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             z-index: 1000;
         }
 
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.error { border-left: 3px solid var(--danger-color); }
+        .toast.success { border-left: 3px solid var(--success-color); }
+
+        /* === AUTH MODAL === */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
         }
 
-        .toast.error {
-            border-left: 4px solid var(--danger-color);
+        .modal-overlay.visible {
+            display: flex;
         }
 
-        .toast.success {
-            border-left: 4px solid var(--success-color);
+        .modal-card {
+            background: var(--surface-solid);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 380px;
+            max-width: 90%;
         }
 
-        @media (max-width: 768px) {
-            main {
-                grid-template-columns: 1fr;
-            }
+        .modal-card h2 {
+            font-size: 1.15rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
         }
+
+        .modal-card button {
+            width: 100%;
+            padding: 0.7rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            background: var(--primary-color);
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .modal-card button:hover {
+            background: var(--primary-hover);
+        }
+
+        .modal-link {
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .modal-link a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 0.82rem;
+        }
+
+        .modal-link a:hover {
+            text-decoration: underline;
+        }
+
+        /* === FILE TREE === */
+        .file-tree { font-size: 0.8rem; }
+        .file-tree-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-tree-item:hover { background: var(--surface-hover); }
+        .file-tree-item .icon { flex-shrink: 0; font-size: 0.9rem; }
+        .file-tree-item .name { overflow: hidden; text-overflow: ellipsis; }
+        .file-tree-children { padding-left: 1rem; }
+
+        /* === SCROLLBAR === */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
     </style>
 </head>
 
 <body>
-
+    <!-- Header -->
     <header>
-        <h1>WeClaw / OpenClaw Dashboard</h1>
-        <div>
-            <span style="color: var(--text-muted); font-size: 0.875rem;">Container Manager Interface</span>
+        <div class="header-left">
+            <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#9776;</button>
+            <h1>WeClaw</h1>
+        </div>
+        <div class="header-right">
+            <div class="user-badge" id="userBadge" style="display:none;">
+                OpenID: <span id="currentUserLabel">-</span>
+            </div>
+            <button class="sidebar-toggle" onclick="showSetup()" title="Switch user">&#9881;</button>
         </div>
     </header>
 
-    <main>
-        <!-- Left Column: User & Container Management -->
-        <div class="glass-card">
-            <h2 class="card-title">🔌 Connection & Container</h2>
-
-            <div class="form-group">
-                <label for="openidInput">User OpenID (Unique Identifier)</label>
-                <input type="text" id="openidInput" placeholder="e.g. user-123" value="demo-user-1">
+    <!-- Main Layout -->
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h3>Extensions</h3>
+                <button class="store-btn" id="storeBtnSidebar" onclick="toggleStore()">Store</button>
             </div>
-
-            <div class="btn-group">
-                <button onclick="createContainer()" id="createBtn">
-                    <span id="createBtnText">Create / Register</span>
-                    <div id="loader"></div>
-                </button>
-                <button onclick="checkStatus()" style="background: rgba(255,255,255,0.1);">Refresh Status</button>
-            </div>
-
-            <div class="info-grid" id="statusGrid" style="display: none;">
-                <div class="info-item">
-                    <div class="info-label">Current Status</div>
-                    <div class="status-badge status-offline" id="statusBadge">Checking...</div>
+            <div class="sidebar-content">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Skills</div>
+                    <div id="userSkillsList">
+                        <div style="padding: 0.5rem; color: var(--text-dim); font-size: 0.8rem;">No skills installed</div>
+                    </div>
                 </div>
-                <div class="info-item">
-                    <div class="info-label">Container ID</div>
-                    <div class="info-value" id="containerId">-</div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">MCP Servers</div>
+                    <div id="userMCPsList">
+                        <div style="padding: 0.5rem; color: var(--text-dim); font-size: 0.8rem;">No MCP servers installed</div>
+                    </div>
                 </div>
-                <div class="info-item">
-                    <div class="info-label">Port Map</div>
-                    <div class="info-value" id="containerPort">-</div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Knowledge Base</div>
+                    <div id="knowledgeTree">
+                        <div style="padding: 0.5rem; color: var(--text-dim); font-size: 0.8rem;">Loading...</div>
+                    </div>
                 </div>
             </div>
+            <div class="sidebar-footer">
+                <button class="apply-btn" onclick="applyChanges()" id="applyBtn" disabled>Apply Changes</button>
+            </div>
+        </aside>
 
-            <button onclick="deleteContainer()" class="danger" id="deleteBtn" style="display: none; margin-top: 1rem;">
-                Delete Container
-            </button>
-        </div>
+        <!-- Store Panel -->
+        <section class="store-panel" id="storePanel">
+            <div class="store-header">
+                <div class="store-tabs">
+                    <button class="store-tab active" id="tabSkills" onclick="showStoreTab('skills')">Skills</button>
+                    <button class="store-tab" id="tabMCPs" onclick="showStoreTab('mcps')">MCP Servers</button>
+                </div>
+                <button class="store-close" onclick="toggleStore()">&times;</button>
+            </div>
+            <div class="store-content">
+                <div id="storeSkillsGrid" class="store-grid"></div>
+                <div id="storeMCPsGrid" class="store-grid" style="display:none;"></div>
+            </div>
+        </section>
 
-        <!-- Right Column: Chat Interface -->
-        <div class="glass-card">
-            <h2 class="card-title">💬 API Test Chat</h2>
+        <!-- Chat Panel -->
+        <section class="chat-panel" id="chatPanel">
+            <!-- Setup view (no user) -->
+            <div class="setup-panel" id="setupView">
+                <div class="setup-card">
+                    <h2>Connect to Container</h2>
+                    <div class="form-group">
+                        <label>User OpenID</label>
+                        <input type="text" id="openidInput" placeholder="e.g. demo-user-1" value="demo-user-1">
+                    </div>
+                    <div class="setup-actions">
+                        <button class="btn-primary" onclick="connectUser()">Connect</button>
+                        <button class="btn-secondary" onclick="createAndConnect()">Create New</button>
+                    </div>
+                    <div id="setupStatus" style="margin-top:1rem;display:none;">
+                        <div class="extension-item" style="justify-content:center;">
+                            <span style="color:var(--text-muted);font-size:0.85rem;" id="setupStatusText">...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            <div class="chat-container">
+            <!-- Chat view (user connected) -->
+            <div id="chatView" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;">
+                <div class="chat-header">
+                    <h3>Chat</h3>
+                    <div class="chat-status">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText" style="color:var(--text-muted);">Offline</span>
+                    </div>
+                </div>
                 <div class="chat-messages" id="chatBox">
-                    <div class="message ai">Welcome! Register a user to start testing the OpenClaw API container.</div>
+                    <div class="message system">Connect to a container to start chatting.</div>
                 </div>
-
                 <div class="chat-input-area">
-                    <input type="text" id="messageInput" placeholder="Type a message to send..."
-                        onkeypress="if(event.key === 'Enter') sendMessage()">
-                    <button onclick="sendMessage()" id="sendBtn">Send</button>
+                    <input type="text" id="messageInput" placeholder="Send a message..."
+                        onkeypress="if(event.key==='Enter')sendMessage()">
+                    <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
                 </div>
             </div>
-        </div>
-    </main>
+        </section>
+    </div>
 
-    <div id="toast" class="toast">Notification Message</div>
+    <!-- File Viewer Modal -->
+    <div class="modal-overlay" id="fileViewerModal">
+        <div class="modal-card" style="width:700px;max-width:95%;max-height:85vh;display:flex;flex-direction:column;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <h2 id="fileViewerTitle" style="font-size:1rem;margin:0;">File</h2>
+                <button class="store-close" onclick="closeFileViewer()" style="font-size:1.4rem;">&times;</button>
+            </div>
+            <pre id="fileViewerContent" style="flex:1;overflow:auto;background:rgba(0,0,0,0.4);border:1px solid var(--surface-border);border-radius:8px;padding:1rem;font-size:0.8rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;margin:0;color:var(--text-main);"></pre>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
 
     <!-- Auth Modal -->
-    <div id="authModal"
-        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="glass-card" style="width: 400px; max-width: 90%;">
-            <h2 class="card-title" id="authTitle">Admin Login</h2>
+    <div class="modal-overlay" id="authModal">
+        <div class="modal-card">
+            <h2 id="authTitle">Login</h2>
             <div class="form-group">
                 <label>Username</label>
                 <input type="text" id="authUsername" placeholder="username">
@@ -408,43 +951,61 @@
             <div class="form-group">
                 <label>Password</label>
                 <input type="password" id="authPassword" placeholder="password"
-                    onkeypress="if(event.key === 'Enter') doAuth()">
+                    onkeypress="if(event.key==='Enter')doAuth()">
             </div>
             <button onclick="doAuth()" id="authBtn">Login</button>
-            <div style="margin-top: 1rem; text-align: center;">
-                <a href="#" onclick="toggleAuthMode()" id="authToggleLink"
-                    style="color: var(--primary-color); text-decoration: none;">Don't have an account? Register
-                    here.</a>
+            <div class="modal-link">
+                <a href="#" onclick="toggleAuthMode()" id="authToggleLink">No account? Register</a>
             </div>
         </div>
     </div>
 
     <script>
+        // ==================== State ====================
         const AUTH_BASE = window.location.origin + '/api/auth';
-        const API_BASE = window.location.origin + '/api/test';
-        let currentUser = null;
+        const TEST_BASE = window.location.origin + '/api/test';
+        const STORE_BASE = window.location.origin + '/api/store';
+        const USER_BASE = window.location.origin + '/api/user';
+
         let authToken = localStorage.getItem('weclaw_token') || null;
         let isLoginMode = true;
+        let currentUser = null; // openid
+        let currentUserObj = null; // full user object
 
+        let skillCatalog = [];
+        let mcpCatalog = [];
+        let userSkills = [];
+        let userMCPs = [];
+        let storeVisible = false;
+        let sidebarVisible = true;
+        let pendingChanges = false;
+
+        // ==================== Init ====================
         if (!authToken) {
-            document.getElementById('authModal').style.display = 'flex';
+            document.getElementById('authModal').classList.add('visible');
+        } else {
+            // Auto-reconnect to saved user
+            const savedOpenID = localStorage.getItem('weclaw_openid');
+            if (savedOpenID) {
+                document.getElementById('openidInput').value = savedOpenID;
+                connectUser();
+            }
         }
 
+        // ==================== Auth ====================
         function toggleAuthMode() {
             isLoginMode = !isLoginMode;
-            document.getElementById('authTitle').innerText = isLoginMode ? 'Admin Login' : 'Admin Register';
+            document.getElementById('authTitle').innerText = isLoginMode ? 'Login' : 'Register';
             document.getElementById('authBtn').innerText = isLoginMode ? 'Login' : 'Register';
-            document.getElementById('authToggleLink').innerText = isLoginMode ? "Don't have an account? Register here." : "Already have an account? Login here.";
+            document.getElementById('authToggleLink').innerText = isLoginMode ? 'No account? Register' : 'Have account? Login';
         }
 
         async function doAuth() {
             const u = document.getElementById('authUsername').value.trim();
             const p = document.getElementById('authPassword').value.trim();
-            if (!u || !p) return showToast('Please enter username and password', 'error');
+            if (!u || !p) return showToast('Enter username and password', 'error');
 
             const endpoint = isLoginMode ? '/login' : '/register';
-            setLoading('authBtn', true);
-
             try {
                 const res = await fetch(AUTH_BASE + endpoint, {
                     method: 'POST',
@@ -452,28 +1013,21 @@
                     body: JSON.stringify({ username: u, password: p })
                 });
                 const data = await res.json();
-
                 if (res.ok) {
                     if (isLoginMode) {
                         authToken = data.token;
                         localStorage.setItem('weclaw_token', authToken);
-                        document.getElementById('authModal').style.display = 'none';
-                        showToast('Login successful!');
-                        // Auto-fill OpenID with the username to make testing easier
-                        document.getElementById('openidInput').value = u;
-                        currentUser = u;
-                        checkStatus();
+                        document.getElementById('authModal').classList.remove('visible');
+                        showToast('Login successful');
                     } else {
-                        showToast('Registration successful! You can now login.');
+                        showToast('Registration successful, please login');
                         toggleAuthMode();
                     }
                 } else {
-                    showToast(data.error || 'Authentication failed', 'error');
+                    showToast(data.error || 'Auth failed', 'error');
                 }
             } catch (err) {
                 showToast(err.message, 'error');
-            } finally {
-                setLoading('authBtn', false);
             }
         }
 
@@ -488,53 +1042,44 @@
             if (res.status === 401) {
                 localStorage.removeItem('weclaw_token');
                 authToken = null;
-                document.getElementById('authModal').style.display = 'flex';
-                throw new Error("Unauthorized. Please login again.");
+                document.getElementById('authModal').classList.add('visible');
+                throw new Error('Session expired. Please login again.');
             }
         }
 
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.className = 'toast show ' + type;
-            setTimeout(() => {
-                toast.className = 'toast';
-            }, 3000);
-        }
-
-        function appendMessage(text, sender) {
-            const chatBox = document.getElementById('chatBox');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${sender}`;
-            msgDiv.innerText = text;
-            chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        function setLoading(btnId, isLoad) {
-            const btn = document.getElementById(btnId);
-            if (!btn) return;
-            if (isLoad) {
-                btn.style.opacity = '0.7';
-                btn.style.pointerEvents = 'none';
-            } else {
-                btn.style.opacity = '1';
-                btn.style.pointerEvents = 'auto';
-            }
-        }
-
-        async function createContainer() {
+        // ==================== User Connection ====================
+        async function connectUser() {
             const openid = document.getElementById('openidInput').value.trim();
-            if (!openid) return showToast('Please enter an OpenID', 'error');
-
-            setLoading('createBtn', true);
-            const loader = document.getElementById('loader');
-            const btnText = document.getElementById('createBtnText');
-            loader.style.display = 'block';
-            btnText.style.display = 'none';
+            if (!openid) return showToast('Enter an OpenID', 'error');
 
             try {
-                const res = await fetch(`${API_BASE}/register`, {
+                const res = await fetch(`${TEST_BASE}/user/${openid}`, { headers: getAuthHeaders() });
+                if (!res.ok) {
+                    handleApiError(res);
+                    showToast('User not found. Create first?', 'error');
+                    return;
+                }
+                const data = await res.json();
+                currentUser = openid;
+                currentUserObj = data.user;
+                localStorage.setItem('weclaw_openid', openid);
+                enterChatMode(data);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function createAndConnect() {
+            const openid = document.getElementById('openidInput').value.trim();
+            if (!openid) return showToast('Enter an OpenID', 'error');
+
+            const status = document.getElementById('setupStatus');
+            const statusText = document.getElementById('setupStatusText');
+            status.style.display = 'block';
+            statusText.textContent = 'Creating container...';
+
+            try {
+                const res = await fetch(`${TEST_BASE}/register`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ openid })
@@ -542,119 +1087,474 @@
                 if (!res.ok) handleApiError(res);
                 const data = await res.json();
 
-                if (res.ok && (data.status === 'OK' || data.status === 'already_exists')) {
-                    showToast(data.message || 'Container ready!');
+                if (data.status === 'OK' || data.status === 'already_exists') {
+                    showToast(data.message || 'Ready!');
                     currentUser = openid;
-                    await checkStatus();
+                    await connectUser();
                 } else {
-                    showToast(data.error || 'Failed to create container', 'error');
+                    showToast(data.error || 'Failed', 'error');
+                    statusText.textContent = data.error || 'Failed';
                 }
             } catch (err) {
                 showToast(err.message, 'error');
-            } finally {
-                setLoading('createBtn', false);
-                loader.style.display = 'none';
-                btnText.style.display = 'block';
+                statusText.textContent = err.message;
             }
         }
 
-        async function checkStatus() {
-            const openid = currentUser || document.getElementById('openidInput').value.trim();
-            if (!openid) return;
+        function enterChatMode(data) {
+            document.getElementById('setupView').style.display = 'none';
+            document.getElementById('chatView').style.display = 'flex';
+            document.getElementById('userBadge').style.display = 'block';
+            document.getElementById('currentUserLabel').textContent = currentUser;
+
+            const dot = document.getElementById('statusDot');
+            const statusLabel = document.getElementById('statusText');
+            if (data.container_running) {
+                dot.classList.add('active');
+                statusLabel.textContent = 'Running';
+            } else {
+                dot.classList.remove('active');
+                statusLabel.textContent = currentUserObj?.status || 'Offline';
+            }
+
+            // Load message history
+            loadMessageHistory();
+
+            // Load user extensions and knowledge
+            loadUserExtensions();
+            loadStore();
+            loadKnowledge();
+        }
+
+        async function loadMessageHistory() {
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML = '';
 
             try {
-                const res = await fetch(`${API_BASE}/user/${openid}`, { headers: getAuthHeaders() });
+                const res = await fetch(`${TEST_BASE}/user/${currentUser}/messages?limit=50`, {
+                    headers: getAuthHeaders()
+                });
                 if (!res.ok) {
-                    handleApiError(res);
-                    document.getElementById('statusGrid').style.display = 'none';
-                    document.getElementById('deleteBtn').style.display = 'none';
+                    chatBox.innerHTML = '<div class="message system">Connected. Send a message to start.</div>';
                     return;
                 }
                 const data = await res.json();
+                const messages = data.messages || [];
 
-                document.getElementById('statusGrid').style.display = 'grid';
-                document.getElementById('deleteBtn').style.display = 'block';
-
-                const badge = document.getElementById('statusBadge');
-                if (data.container_running) {
-                    badge.textContent = 'Running';
-                    badge.className = 'status-badge status-active';
-                } else {
-                    badge.textContent = data.user.status || 'Offline';
-                    badge.className = 'status-badge status-offline';
+                if (messages.length === 0) {
+                    chatBox.innerHTML = '<div class="message system">Connected. Send a message to start.</div>';
+                    return;
                 }
 
-                document.getElementById('containerId').textContent = data.user.container_id ? data.user.container_id.substring(0, 12) : 'None';
-                document.getElementById('containerPort').textContent = data.user.container_port || 'None';
-                currentUser = openid;
+                for (const msg of messages) {
+                    const sender = msg.direction === 'incoming' ? 'user' : 'ai';
+                    appendMessage(msg.content, sender);
+                }
             } catch (err) {
-                console.error(err);
+                chatBox.innerHTML = '<div class="message system">Connected. Send a message to start.</div>';
             }
         }
 
-        async function deleteContainer() {
-            if (!currentUser) return;
+        function showSetup() {
+            document.getElementById('setupView').style.display = 'flex';
+            document.getElementById('chatView').style.display = 'none';
+            document.getElementById('userBadge').style.display = 'none';
+            currentUser = null;
+            currentUserObj = null;
+            localStorage.removeItem('weclaw_openid');
+        }
 
-            if (!confirm(`Are you sure you want to delete container for ${currentUser}?`)) return;
-
+        // ==================== Store ====================
+        async function loadStore() {
             try {
-                const res = await fetch(`${API_BASE}/user/${currentUser}`, {
-                    method: 'DELETE',
-                    headers: getAuthHeaders()
+                const [skillsRes, mcpsRes] = await Promise.all([
+                    fetch(`${STORE_BASE}/skills`, { headers: getAuthHeaders() }),
+                    fetch(`${STORE_BASE}/mcps`, { headers: getAuthHeaders() })
+                ]);
+                if (skillsRes.ok) skillCatalog = await skillsRes.json() || [];
+                if (mcpsRes.ok) mcpCatalog = await mcpsRes.json() || [];
+                renderStore();
+            } catch (err) {
+                console.error('loadStore error:', err);
+            }
+        }
+
+        async function loadUserExtensions() {
+            if (!currentUser) return;
+            try {
+                const [skillsRes, mcpsRes] = await Promise.all([
+                    fetch(`${USER_BASE}/skills?openid=${currentUser}`, { headers: getAuthHeaders() }),
+                    fetch(`${USER_BASE}/mcps?openid=${currentUser}`, { headers: getAuthHeaders() })
+                ]);
+                if (skillsRes.ok) userSkills = await skillsRes.json() || [];
+                if (mcpsRes.ok) userMCPs = await mcpsRes.json() || [];
+                renderSidebar();
+                renderStore(); // update install/uninstall states
+            } catch (err) {
+                console.error('loadUserExtensions error:', err);
+            }
+        }
+
+        function renderSidebar() {
+            // Skills
+            const skillsEl = document.getElementById('userSkillsList');
+            if (!userSkills || userSkills.length === 0) {
+                skillsEl.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">No skills installed</div>';
+            } else {
+                skillsEl.innerHTML = userSkills.map(s => {
+                    const cat = skillCatalog.find(c => c.name === s.skill_name);
+                    const icon = cat?.icon || '\u2699';
+                    const name = cat?.display_name || s.skill_name;
+                    return `<div class="extension-item">
+                        <div class="extension-info">
+                            <span class="extension-icon">${icon}</span>
+                            <span class="extension-name">${name}</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleSkill('${s.skill_name}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>`;
+                }).join('');
+            }
+
+            // MCPs
+            const mcpsEl = document.getElementById('userMCPsList');
+            if (!userMCPs || userMCPs.length === 0) {
+                mcpsEl.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">No MCP servers installed</div>';
+            } else {
+                mcpsEl.innerHTML = userMCPs.map(m => {
+                    const cat = mcpCatalog.find(c => c.name === m.mcp_name);
+                    const icon = cat?.icon || '\u{1F50C}';
+                    const name = cat?.display_name || m.mcp_name;
+                    return `<div class="extension-item">
+                        <div class="extension-info">
+                            <span class="extension-icon">${icon}</span>
+                            <span class="extension-name">${name}</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${m.enabled ? 'checked' : ''} onchange="toggleMCP('${m.mcp_name}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        function renderStore() {
+            const installedSkillNames = new Set((userSkills || []).map(s => s.skill_name));
+            const installedMCPNames = new Set((userMCPs || []).map(m => m.mcp_name));
+
+            // Skills grid
+            const skillsGrid = document.getElementById('storeSkillsGrid');
+            if (!skillCatalog || skillCatalog.length === 0) {
+                skillsGrid.innerHTML = '<div class="store-empty"><div class="store-empty-icon">\u{1F4E6}</div><div>No skills in store yet.<br>Admin can add via API.</div></div>';
+            } else {
+                skillsGrid.innerHTML = skillCatalog.map(s => {
+                    const installed = installedSkillNames.has(s.name);
+                    return `<div class="store-card">
+                        <div class="card-header">
+                            <span class="card-icon">${s.icon || '\u2699'}</span>
+                            <div class="card-meta">
+                                <div class="card-name">${s.display_name || s.name}</div>
+                                <div class="card-category">${s.category || 'Skill'}</div>
+                            </div>
+                        </div>
+                        <div class="card-desc">${s.description || 'No description'}</div>
+                        <button class="card-action ${installed ? 'installed' : 'install'}"
+                            onclick="${installed ? `uninstallSkill('${s.name}')` : `installSkill('${s.name}')`}"
+                            onmouseenter="if(this.classList.contains('installed'))this.textContent='Uninstall'"
+                            onmouseleave="if(this.classList.contains('installed'))this.textContent='Installed'">
+                            ${installed ? 'Installed' : 'Install'}
+                        </button>
+                    </div>`;
+                }).join('');
+            }
+
+            // MCPs grid
+            const mcpsGrid = document.getElementById('storeMCPsGrid');
+            if (!mcpCatalog || mcpCatalog.length === 0) {
+                mcpsGrid.innerHTML = '<div class="store-empty"><div class="store-empty-icon">\u{1F50C}</div><div>No MCP servers in store yet.<br>Admin can add via API.</div></div>';
+            } else {
+                mcpsGrid.innerHTML = mcpCatalog.map(m => {
+                    const installed = installedMCPNames.has(m.name);
+                    return `<div class="store-card">
+                        <div class="card-header">
+                            <span class="card-icon">${m.icon || '\u{1F50C}'}</span>
+                            <div class="card-meta">
+                                <div class="card-name">${m.display_name || m.name}</div>
+                                <div class="card-category">${m.category || 'MCP Server'}</div>
+                            </div>
+                        </div>
+                        <div class="card-desc">${m.description || m.command + ' ' + (m.args || '')}</div>
+                        <button class="card-action ${installed ? 'installed' : 'install'}"
+                            onclick="${installed ? `uninstallMCP('${m.name}')` : `installMCP('${m.name}')`}"
+                            onmouseenter="if(this.classList.contains('installed'))this.textContent='Uninstall'"
+                            onmouseleave="if(this.classList.contains('installed'))this.textContent='Installed'">
+                            ${installed ? 'Installed' : 'Install'}
+                        </button>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        // ==================== Install / Uninstall ====================
+        async function installSkill(name) {
+            if (!currentUser) return showToast('Connect to a user first', 'error');
+            try {
+                const res = await fetch(`${USER_BASE}/skills`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ openid: currentUser, skill_name: name })
                 });
                 if (!res.ok) handleApiError(res);
                 if (res.ok) {
-                    showToast('Container deleted');
-                    document.getElementById('statusGrid').style.display = 'none';
-                    document.getElementById('deleteBtn').style.display = 'none';
-                    currentUser = null;
+                    showToast(`Skill "${name}" installed`);
+                    markPendingChanges();
+                    await loadUserExtensions();
+                }
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        async function uninstallSkill(name) {
+            if (!currentUser) return;
+            try {
+                const res = await fetch(`${USER_BASE}/skills/${name}?openid=${currentUser}`, {
+                    method: 'DELETE', headers: getAuthHeaders()
+                });
+                if (!res.ok) handleApiError(res);
+                if (res.ok) {
+                    showToast(`Skill "${name}" removed`);
+                    markPendingChanges();
+                    await loadUserExtensions();
+                }
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        async function installMCP(name) {
+            if (!currentUser) return showToast('Connect to a user first', 'error');
+            try {
+                const res = await fetch(`${USER_BASE}/mcps`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ openid: currentUser, mcp_name: name })
+                });
+                if (!res.ok) handleApiError(res);
+                if (res.ok) {
+                    showToast(`MCP "${name}" installed`);
+                    markPendingChanges();
+                    await loadUserExtensions();
+                }
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        async function uninstallMCP(name) {
+            if (!currentUser) return;
+            try {
+                const res = await fetch(`${USER_BASE}/mcps/${name}?openid=${currentUser}`, {
+                    method: 'DELETE', headers: getAuthHeaders()
+                });
+                if (!res.ok) handleApiError(res);
+                if (res.ok) {
+                    showToast(`MCP "${name}" removed`);
+                    markPendingChanges();
+                    await loadUserExtensions();
+                }
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        function toggleSkill(name, enabled) {
+            markPendingChanges();
+        }
+
+        function toggleMCP(name, enabled) {
+            markPendingChanges();
+        }
+
+        // ==================== Apply Changes ====================
+        function markPendingChanges() {
+            pendingChanges = true;
+            const btn = document.getElementById('applyBtn');
+            btn.disabled = false;
+            btn.textContent = 'Apply Changes';
+            btn.style.animation = 'none';
+            btn.offsetHeight; // trigger reflow
+            btn.style.animation = null;
+        }
+
+        async function applyChanges() {
+            if (!currentUser) return showToast('No user connected', 'error');
+            const btn = document.getElementById('applyBtn');
+            btn.disabled = true;
+            btn.textContent = 'Applying...';
+
+            try {
+                const res = await fetch(`${USER_BASE}/apply`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ openid: currentUser })
+                });
+                if (!res.ok) handleApiError(res);
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('Changes applied! Container restarting...');
+                    pendingChanges = false;
+                    btn.textContent = 'Applied';
+                    // Re-check status after restart
+                    setTimeout(() => connectUser(), 5000);
+                } else {
+                    showToast(data.error || 'Apply failed', 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Apply Changes';
                 }
             } catch (err) {
                 showToast(err.message, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Apply Changes';
             }
         }
 
+        // ==================== Chat ====================
+        function appendMessage(text, sender) {
+            const chatBox = document.getElementById('chatBox');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${sender}`;
+            msgDiv.textContent = text;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
         async function sendMessage() {
-            const openid = document.getElementById('openidInput').value.trim();
             const input = document.getElementById('messageInput');
             const text = input.value.trim();
-
-            if (!openid) return showToast('Please set OpenID and create container first', 'error');
+            if (!currentUser) return showToast('Connect to a user first', 'error');
             if (!text) return;
 
             appendMessage(text, 'user');
             input.value = '';
-            setLoading('sendBtn', true);
-            const sendBtn = document.getElementById('sendBtn');
-            const originalText = sendBtn.innerText;
-            sendBtn.innerText = '...';
+
+            const btn = document.getElementById('sendBtn');
+            btn.disabled = true;
+            btn.textContent = '...';
 
             try {
-                const res = await fetch(`${API_BASE}/send`, {
+                const res = await fetch(`${TEST_BASE}/send`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ openid, message: text })
+                    body: JSON.stringify({ openid: currentUser, message: text })
                 });
                 if (!res.ok) handleApiError(res);
                 const data = await res.json();
 
                 if (res.ok && data.status === 'OK') {
-                    // Check if raw_response is empty or just brackets
                     const resp = data.raw_response;
                     if (!resp || resp.trim() === '' || resp.includes('[无响应内容]')) {
-                        appendMessage('⚠️ OpenClaw returned empty response. (Raw: ' + resp + ')', 'ai');
+                        appendMessage('(Empty response)', 'system');
                     } else {
                         appendMessage(resp, 'ai');
                     }
                 } else {
-                    appendMessage(`Error: ${data.error || 'Request failed'}`, 'ai');
+                    appendMessage(`Error: ${data.error || 'Request failed'}`, 'system');
                 }
             } catch (err) {
-                appendMessage(`Network Error: ${err.message}`, 'ai');
+                appendMessage(`Network Error: ${err.message}`, 'system');
             } finally {
-                setLoading('sendBtn', false);
-                sendBtn.innerText = originalText;
+                btn.disabled = false;
+                btn.textContent = 'Send';
             }
+        }
+
+        // ==================== UI Toggles ====================
+        function toggleSidebar() {
+            sidebarVisible = !sidebarVisible;
+            document.getElementById('sidebar').classList.toggle('collapsed', !sidebarVisible);
+        }
+
+        function toggleStore() {
+            storeVisible = !storeVisible;
+            document.getElementById('storePanel').classList.toggle('visible', storeVisible);
+            document.getElementById('storeBtnSidebar').classList.toggle('active', storeVisible);
+        }
+
+        function showStoreTab(tab) {
+            document.getElementById('tabSkills').classList.toggle('active', tab === 'skills');
+            document.getElementById('tabMCPs').classList.toggle('active', tab === 'mcps');
+            document.getElementById('storeSkillsGrid').style.display = tab === 'skills' ? 'grid' : 'none';
+            document.getElementById('storeMCPsGrid').style.display = tab === 'mcps' ? 'grid' : 'none';
+        }
+
+        // ==================== Knowledge Base ====================
+        let knowledgeFiles = [];
+
+        async function loadKnowledge() {
+            const el = document.getElementById('knowledgeTree');
+            try {
+                const res = await fetch(`${STORE_BASE}/knowledge`, { headers: getAuthHeaders() });
+                if (!res.ok) { el.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">Failed to load</div>'; return; }
+                knowledgeFiles = await res.json() || [];
+                if (knowledgeFiles.length === 0) {
+                    el.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">Empty — add files to shared-knowledge/</div>';
+                    return;
+                }
+                el.innerHTML = '<div class="file-tree">' + renderFileTree(knowledgeFiles) + '</div>';
+            } catch (err) {
+                el.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">Error loading files</div>';
+            }
+        }
+
+        function renderFileTree(entries) {
+            return entries.map(e => {
+                if (e.is_dir) {
+                    const children = e.items && e.items.length > 0 ? renderFileTree(e.items) : '';
+                    return `<div>
+                        <div class="file-tree-item" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+                            <span class="icon">\u{1F4C1}</span><span class="name">${e.name}</span>
+                        </div>
+                        <div class="file-tree-children">${children}</div>
+                    </div>`;
+                } else {
+                    const sizeKB = e.size > 1024 ? (e.size / 1024).toFixed(1) + 'K' : e.size + 'B';
+                    return `<div class="file-tree-item" onclick="viewFile('${e.path.replace(/'/g, "\\'")}')">
+                        <span class="icon">\u{1F4C4}</span><span class="name">${e.name}</span>
+                        <span style="margin-left:auto;color:var(--text-dim);font-size:0.7rem;flex-shrink:0;">${sizeKB}</span>
+                    </div>`;
+                }
+            }).join('');
+        }
+
+        async function viewFile(path) {
+            document.getElementById('fileViewerModal').classList.add('visible');
+            document.getElementById('fileViewerTitle').textContent = path;
+            document.getElementById('fileViewerContent').textContent = 'Loading...';
+
+            try {
+                const res = await fetch(`${STORE_BASE}/knowledge/read?path=${encodeURIComponent(path)}`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('fileViewerContent').textContent = data.content;
+                } else {
+                    document.getElementById('fileViewerContent').textContent = 'Error: ' + (data.error || 'Failed to read file');
+                }
+            } catch (err) {
+                document.getElementById('fileViewerContent').textContent = 'Error: ' + err.message;
+            }
+        }
+
+        function closeFileViewer() {
+            document.getElementById('fileViewerModal').classList.remove('visible');
+        }
+
+        // Load knowledge tree on page init (after auth)
+        if (authToken) { loadKnowledge(); }
+
+        // ==================== Toast ====================
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
         }
     </script>
 </body>

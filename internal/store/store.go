@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/qcy/weclaw/internal/catalog"
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/user"
 	"github.com/qcy/weclaw/pkg/logger"
@@ -31,7 +32,11 @@ func New(cfg *config.DatabaseConfig) (*Store, error) {
 	}
 
 	// Auto-migrate tables
-	if err := db.AutoMigrate(&user.User{}, &user.MessageLog{}); err != nil {
+	if err := db.AutoMigrate(
+		&user.User{}, &user.MessageLog{},
+		&catalog.SkillCatalog{}, &catalog.UserSkill{},
+		&catalog.MCPCatalog{}, &catalog.UserMCP{},
+	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
