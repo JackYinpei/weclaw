@@ -40,3 +40,4 @@ logs/
 *.log
 
 # experience data ? Maybe leave it if it's test data
+configs/config.yaml

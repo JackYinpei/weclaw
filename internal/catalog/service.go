@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Service provides catalog and user-selection CRUD operations.
+// Service provides catalog and container-selection CRUD operations.
 type Service struct {
 	db *gorm.DB
 }
@@ -59,21 +59,21 @@ func (s *Service) DeleteMCPCatalog(name string) error {
 	return s.db.Where("name = ?", name).Delete(&MCPCatalog{}).Error
 }
 
-// --- User Skills ---
+// --- Container Skills ---
 
-// GetUserSkills returns all skills a user has enabled.
-func (s *Service) GetUserSkills(userID uint) ([]UserSkill, error) {
+// GetContainerSkills returns all skills a container has enabled.
+func (s *Service) GetContainerSkills(containerID uint) ([]UserSkill, error) {
 	var items []UserSkill
-	if err := s.db.Where("user_id = ?", userID).Find(&items).Error; err != nil {
+	if err := s.db.Where("container_id = ?", containerID).Find(&items).Error; err != nil {
 		return nil, err
 	}
 	return items, nil
 }
 
-// EnableSkill enables a skill for a user, creating or updating the record.
-func (s *Service) EnableSkill(userID uint, skillName string, config string) error {
+// EnableSkill enables a skill for a container, creating or updating the record.
+func (s *Service) EnableSkill(containerID uint, skillName string, config string) error {
 	var existing UserSkill
-	err := s.db.Where("user_id = ? AND skill_name = ?", userID, skillName).First(&existing).Error
+	err := s.db.Where("container_id = ? AND skill_name = ?", containerID, skillName).First(&existing).Error
 	if err == nil {
 		// Update existing
 		return s.db.Model(&existing).Updates(map[string]any{
@@ -86,66 +86,65 @@ func (s *Service) EnableSkill(userID uint, skillName string, config string) erro
 	}
 	// Create new
 	return s.db.Create(&UserSkill{
-		UserID:    userID,
-		SkillName: skillName,
-		Enabled:   true,
-		Config:    config,
+		ContainerID: containerID,
+		SkillName:   skillName,
+		Enabled:     true,
+		Config:      config,
 	}).Error
 }
 
-// DisableSkill disables (soft-deletes) a skill for a user.
-func (s *Service) DisableSkill(userID uint, skillName string) error {
-	return s.db.Where("user_id = ? AND skill_name = ?", userID, skillName).Delete(&UserSkill{}).Error
+// DisableSkill disables (soft-deletes) a skill for a container.
+func (s *Service) DisableSkill(containerID uint, skillName string) error {
+	return s.db.Where("container_id = ? AND skill_name = ?", containerID, skillName).Delete(&UserSkill{}).Error
 }
 
-// --- User MCPs ---
+// --- Container MCPs ---
 
-// GetUserMCPs returns all MCP servers a user has enabled.
-func (s *Service) GetUserMCPs(userID uint) ([]UserMCP, error) {
+// GetContainerMCPs returns all MCP servers a container has enabled.
+func (s *Service) GetContainerMCPs(containerID uint) ([]UserMCP, error) {
 	var items []UserMCP
-	if err := s.db.Where("user_id = ?", userID).Find(&items).Error; err != nil {
+	if err := s.db.Where("container_id = ?", containerID).Find(&items).Error; err != nil {
 		return nil, err
 	}
 	return items, nil
 }
 
-// AddUserMCP adds an MCP server for a user.
-func (s *Service) AddUserMCP(userID uint, mcp *UserMCP) error {
-	mcp.UserID = userID
+// AddContainerMCP adds an MCP server for a container.
+func (s *Service) AddContainerMCP(containerID uint, mcp *UserMCP) error {
+	mcp.ContainerID = containerID
 	return s.db.Create(mcp).Error
 }
 
-// UpdateUserMCP updates an MCP server config for a user.
-func (s *Service) UpdateUserMCP(userID uint, mcpName string, updates map[string]any) error {
-	result := s.db.Model(&UserMCP{}).Where("user_id = ? AND mcp_name = ?", userID, mcpName).Updates(updates)
+// UpdateContainerMCP updates an MCP server config for a container.
+func (s *Service) UpdateContainerMCP(containerID uint, mcpName string, updates map[string]any) error {
+	result := s.db.Model(&UserMCP{}).Where("container_id = ? AND mcp_name = ?", containerID, mcpName).Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("MCP server %q not found for user", mcpName)
+		return fmt.Errorf("MCP server %q not found for container", mcpName)
 	}
 	return nil
 }
 
-// RemoveUserMCP removes an MCP server for a user.
-func (s *Service) RemoveUserMCP(userID uint, mcpName string) error {
-	return s.db.Where("user_id = ? AND mcp_name = ?", userID, mcpName).Delete(&UserMCP{}).Error
+// RemoveContainerMCP removes an MCP server for a container.
+func (s *Service) RemoveContainerMCP(containerID uint, mcpName string) error {
+	return s.db.Where("container_id = ? AND mcp_name = ?", containerID, mcpName).Delete(&UserMCP{}).Error
 }
 
 // --- Extras Builder ---
 
-// BuildOpenClawExtras builds the extras map from user's skill/MCP selections.
-// Returns skills entries, skill extra dirs, and MCP server configs.
-func (s *Service) BuildOpenClawExtras(userID uint) (
+// BuildOpenClawExtras builds the extras map from a container's skill/MCP selections.
+func (s *Service) BuildOpenClawExtras(containerID uint) (
 	skills map[string]map[string]any,
 	skillDirs []string,
 	mcps map[string]map[string]any,
 	err error,
 ) {
-	// Fetch user skills
-	userSkills, err := s.GetUserSkills(userID)
+	// Fetch container skills
+	containerSkills, err := s.GetContainerSkills(containerID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("get user skills: %w", err)
+		return nil, nil, nil, fmt.Errorf("get container skills: %w", err)
 	}
 
 	// Fetch skill catalog for skill dirs
@@ -161,7 +160,7 @@ func (s *Service) BuildOpenClawExtras(userID uint) (
 	// Build skill entries
 	skills = make(map[string]map[string]any)
 	skillDirSet := make(map[string]bool)
-	for _, us := range userSkills {
+	for _, us := range containerSkills {
 		entry := map[string]any{"enabled": us.Enabled}
 		if us.Config != "" {
 			var cfg map[string]any
@@ -180,14 +179,14 @@ func (s *Service) BuildOpenClawExtras(userID uint) (
 		skillDirs = append(skillDirs, dir)
 	}
 
-	// Fetch user MCPs
-	userMCPs, err := s.GetUserMCPs(userID)
+	// Fetch container MCPs
+	containerMCPs, err := s.GetContainerMCPs(containerID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("get user mcps: %w", err)
+		return nil, nil, nil, fmt.Errorf("get container mcps: %w", err)
 	}
 
 	mcps = make(map[string]map[string]any)
-	for _, um := range userMCPs {
+	for _, um := range containerMCPs {
 		entry := map[string]any{"command": um.Command}
 		if um.Args != "" {
 			var args []string

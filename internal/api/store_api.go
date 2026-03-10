@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,166 +15,287 @@ import (
 	"github.com/qcy/weclaw/internal/catalog"
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
-	"github.com/qcy/weclaw/internal/user"
+	"github.com/qcy/weclaw/internal/openclaw"
 	"github.com/qcy/weclaw/pkg/logger"
 )
 
-// StoreAPI provides store and user-customization API endpoints.
-type StoreAPI struct {
-	cfg            *config.Config
-	catalogService *catalog.Service
-	userService    *user.Service
-	containerMgr   *container.Manager
+// ContainerAPI provides container CRUD, chat, skill/MCP, and store endpoints.
+type ContainerAPI struct {
+	cfg              *config.Config
+	containerService *container.Service
+	catalogService   *catalog.Service
+	containerMgr     *container.Manager
+	openclawClient   *openclaw.Client
 }
 
-// NewStoreAPI creates a new store API handler.
-func NewStoreAPI(
+// NewContainerAPI creates a new container API handler.
+func NewContainerAPI(
 	cfg *config.Config,
+	containerService *container.Service,
 	catalogService *catalog.Service,
-	userService *user.Service,
 	containerMgr *container.Manager,
-) *StoreAPI {
-	return &StoreAPI{
-		cfg:            cfg,
-		catalogService: catalogService,
-		userService:    userService,
-		containerMgr:   containerMgr,
+	openclawClient *openclaw.Client,
+) *ContainerAPI {
+	return &ContainerAPI{
+		cfg:              cfg,
+		containerService: containerService,
+		catalogService:   catalogService,
+		containerMgr:     containerMgr,
+		openclawClient:   openclawClient,
 	}
 }
 
-// RegisterRoutes registers store and user config API routes.
-func (s *StoreAPI) RegisterRoutes(r *gin.Engine) {
+// RegisterRoutes registers all container and store API routes.
+func (api *ContainerAPI) RegisterRoutes(r *gin.Engine) {
+	// WebSocket endpoint (JWT via query param, handler does its own auth)
+	r.GET("/ws/containers/:id", api.HandleWebSocket)
+
+	// Container CRUD + chat + skills/MCP
+	containers := r.Group("/api/containers")
+	containers.Use(AuthMiddleware())
+	{
+		containers.GET("", api.ListContainers)
+		containers.POST("", api.CreateContainer)
+		containers.GET("/:id", api.GetContainer)
+		containers.DELETE("/:id", api.DeleteContainer)
+		containers.POST("/:id/send", api.SendMessage)
+		containers.GET("/:id/messages", api.GetMessages)
+		containers.GET("/:id/gateway-status", api.GatewayStatus)
+		containers.GET("/:id/skills", api.GetContainerSkills)
+		containers.POST("/:id/skills", api.EnableSkill)
+		containers.DELETE("/:id/skills/:name", api.DisableSkill)
+		containers.GET("/:id/mcps", api.GetContainerMCPs)
+		containers.POST("/:id/mcps", api.AddContainerMCP)
+		containers.PUT("/:id/mcps/:name", api.UpdateContainerMCP)
+		containers.DELETE("/:id/mcps/:name", api.RemoveContainerMCP)
+		containers.POST("/:id/apply", api.ApplyChanges)
+		containers.POST("/:id/restart", api.RestartContainer)
+	}
+
+	// Store catalog (admin)
 	store := r.Group("/api/store")
 	store.Use(AuthMiddleware())
 	{
-		store.GET("/skills", s.ListSkillCatalog)
-		store.POST("/skills", s.CreateSkillCatalog)
-		store.DELETE("/skills/:name", s.DeleteSkillCatalog)
-		store.GET("/mcps", s.ListMCPCatalog)
-		store.POST("/mcps", s.CreateMCPCatalog)
-		store.DELETE("/mcps/:name", s.DeleteMCPCatalog)
-		store.GET("/knowledge", s.ListKnowledgeFiles)
-		store.GET("/knowledge/read", s.ReadKnowledgeFile)
-	}
-
-	userCfg := r.Group("/api/user")
-	userCfg.Use(AuthMiddleware())
-	{
-		userCfg.GET("/skills", s.GetUserSkills)
-		userCfg.POST("/skills", s.EnableSkill)
-		userCfg.DELETE("/skills/:name", s.DisableSkill)
-		userCfg.GET("/mcps", s.GetUserMCPs)
-		userCfg.POST("/mcps", s.AddUserMCP)
-		userCfg.PUT("/mcps/:name", s.UpdateUserMCP)
-		userCfg.DELETE("/mcps/:name", s.RemoveUserMCP)
-		userCfg.POST("/apply", s.ApplyChanges)
+		store.GET("/skills", api.ListSkillCatalog)
+		store.POST("/skills", api.CreateSkillCatalog)
+		store.DELETE("/skills/:name", api.DeleteSkillCatalog)
+		store.GET("/mcps", api.ListMCPCatalog)
+		store.POST("/mcps", api.CreateMCPCatalog)
+		store.DELETE("/mcps/:name", api.DeleteMCPCatalog)
+		store.GET("/knowledge", api.ListKnowledgeFiles)
+		store.GET("/knowledge/read", api.ReadKnowledgeFile)
 	}
 }
 
-// --- Skill Catalog Endpoints ---
+// --- Helpers ---
 
-// ListSkillCatalog returns all skills in the store.
-func (s *StoreAPI) ListSkillCatalog(c *gin.Context) {
-	items, err := s.catalogService.ListSkillCatalog()
+func getAccountID(c *gin.Context) uint {
+	sub, _ := c.Get("userID")
+	// JWT sub is stored as float64 by default
+	switch v := sub.(type) {
+	case float64:
+		return uint(v)
+	case uint:
+		return v
+	case int:
+		return uint(v)
+	default:
+		return 0
+	}
+}
+
+func (api *ContainerAPI) resolveContainer(c *gin.Context) (*container.Container, bool) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid container id"})
+		return nil, false
+	}
+	accountID := getAccountID(c)
+	ctr, err := api.containerService.GetByID(uint(id), accountID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "container not found"})
+		return nil, false
+	}
+	return ctr, true
+}
+
+// --- Container CRUD ---
+
+// ListContainers returns all containers for the current account.
+func (api *ContainerAPI) ListContainers(c *gin.Context) {
+	accountID := getAccountID(c)
+	containers, err := api.containerService.ListByAccount(accountID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, items)
+
+	// Enrich with running status
+	type containerWithRunning struct {
+		container.Container
+		IsRunning bool `json:"is_running"`
+	}
+	var result []containerWithRunning
+	for _, ctr := range containers {
+		running, _ := api.containerService.IsContainerRunning(&ctr)
+		result = append(result, containerWithRunning{Container: ctr, IsRunning: running})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"containers": result})
 }
 
-// CreateSkillCatalog adds a skill to the store.
-func (s *StoreAPI) CreateSkillCatalog(c *gin.Context) {
-	var item catalog.SkillCatalog
-	if err := c.ShouldBindJSON(&item); err != nil {
+type createContainerReq struct {
+	DisplayName string `json:"display_name" binding:"required"`
+}
+
+// CreateContainer creates a new container for the current account.
+func (api *ContainerAPI) CreateContainer(c *gin.Context) {
+	var req createContainerReq
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := s.catalogService.CreateSkillCatalog(&item); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": "created", "skill": item})
-}
-
-// DeleteSkillCatalog removes a skill from the store.
-func (s *StoreAPI) DeleteSkillCatalog(c *gin.Context) {
-	name := c.Param("name")
-	if err := s.catalogService.DeleteSkillCatalog(name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": "deleted", "name": name})
-}
-
-// --- MCP Catalog Endpoints ---
-
-// ListMCPCatalog returns all MCP servers in the store.
-func (s *StoreAPI) ListMCPCatalog(c *gin.Context) {
-	items, err := s.catalogService.ListMCPCatalog()
+	accountID := getAccountID(c)
+	ctr, err := api.containerService.Create(accountID, req.DisplayName)
 	if err != nil {
+		logger.Error("Failed to create container", "account_id", accountID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, items)
+	c.JSON(http.StatusOK, gin.H{"status": "created", "container": ctr})
 }
 
-// CreateMCPCatalog adds an MCP server to the store.
-func (s *StoreAPI) CreateMCPCatalog(c *gin.Context) {
-	var item catalog.MCPCatalog
-	if err := c.ShouldBindJSON(&item); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if err := s.catalogService.CreateMCPCatalog(&item); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": "created", "mcp": item})
-}
-
-// DeleteMCPCatalog removes an MCP server from the store.
-func (s *StoreAPI) DeleteMCPCatalog(c *gin.Context) {
-	name := c.Param("name")
-	if err := s.catalogService.DeleteMCPCatalog(name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": "deleted", "name": name})
-}
-
-// --- User Skill Endpoints ---
-
-func (s *StoreAPI) resolveUser(c *gin.Context) (*user.User, bool) {
-	openid := c.Query("openid")
-	if openid == "" {
-		// Try from JSON body (for POST/PUT)
-		var body struct {
-			OpenID string `json:"openid"`
-		}
-		if err := c.ShouldBindJSON(&body); err == nil && body.OpenID != "" {
-			openid = body.OpenID
-		}
-	}
-	if openid == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "openid is required"})
-		return nil, false
-	}
-	u, err := s.userService.FindByOpenID(openid)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found", "openid": openid})
-		return nil, false
-	}
-	return u, true
-}
-
-// GetUserSkills returns the user's enabled skills.
-func (s *StoreAPI) GetUserSkills(c *gin.Context) {
-	u, ok := s.resolveUser(c)
+// GetContainer returns a single container with Docker status.
+func (api *ContainerAPI) GetContainer(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
 	if !ok {
 		return
 	}
-	items, err := s.catalogService.GetUserSkills(u.ID)
+	running, _ := api.containerService.IsContainerRunning(ctr)
+	c.JSON(http.StatusOK, gin.H{"container": ctr, "is_running": running})
+}
+
+// DeleteContainer removes a container.
+func (api *ContainerAPI) DeleteContainer(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid container id"})
+		return
+	}
+	accountID := getAccountID(c)
+	if err := api.containerService.Delete(uint(id), accountID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+// --- Chat ---
+
+type sendMessageReq struct {
+	Message string `json:"message" binding:"required"`
+}
+
+// SendMessage sends a message to the container's OpenClaw instance.
+func (api *ContainerAPI) SendMessage(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+
+	var req sendMessageReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if ctr.ContainerID == "" || ctr.ContainerPort == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "container has no Docker instance"})
+		return
+	}
+
+	// Wake up if sleeping
+	if err := api.containerService.EnsureRunning(ctr); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
+	defer cancel()
+
+	startTime := time.Now()
+	response, err := api.openclawClient.SendMessage(ctx, ctr.ContainerPort, ctr.GatewayToken, req.Message)
+	elapsed := time.Since(startTime)
+
+	if err != nil {
+		logger.Error("OpenClaw send error", "container_id", ctr.ID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("OpenClaw error: %v", err)})
+		return
+	}
+
+	// Log and update activity
+	_ = api.containerService.LogMessage(ctr.ID, "incoming", "text", req.Message)
+	_ = api.containerService.LogMessage(ctr.ID, "outgoing", "text", response)
+	_ = api.containerService.TouchActivity(ctr.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"response": response,
+		"elapsed":  elapsed.String(),
+	})
+}
+
+// GetMessages returns message history for a container.
+func (api *ContainerAPI) GetMessages(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+
+	limit := 50
+	if l := c.Query("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+
+	messages, err := api.containerService.GetMessageHistory(ctr.ID, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"container_id": ctr.ID,
+		"count":        len(messages),
+		"messages":     messages,
+	})
+}
+
+// GatewayStatus checks if the container's OpenClaw Gateway is ready to accept requests.
+func (api *ContainerAPI) GatewayStatus(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+
+	if ctr.ContainerPort == 0 || ctr.GatewayToken == "" {
+		c.JSON(http.StatusOK, gin.H{"ready": false, "reason": "no_port"})
+		return
+	}
+
+	ready := api.openclawClient.CheckHealth(ctr.ContainerPort, ctr.GatewayToken)
+	c.JSON(http.StatusOK, gin.H{"ready": ready})
+}
+
+// --- Container Skills ---
+
+// GetContainerSkills returns the container's enabled skills.
+func (api *ContainerAPI) GetContainerSkills(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+	items, err := api.catalogService.GetContainerSkills(ctr.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -182,63 +304,55 @@ func (s *StoreAPI) GetUserSkills(c *gin.Context) {
 }
 
 type enableSkillReq struct {
-	OpenID    string          `json:"openid" binding:"required"`
 	SkillName string          `json:"skill_name" binding:"required"`
 	Config    json.RawMessage `json:"config"`
 }
 
-// EnableSkill enables a skill for the user.
-func (s *StoreAPI) EnableSkill(c *gin.Context) {
+// EnableSkill enables a skill for the container.
+func (api *ContainerAPI) EnableSkill(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
 	var req enableSkillReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	u, err := s.userService.FindByOpenID(req.OpenID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 	cfgStr := ""
 	if len(req.Config) > 0 {
 		cfgStr = string(req.Config)
 	}
-	if err := s.catalogService.EnableSkill(u.ID, req.SkillName, cfgStr); err != nil {
+	if err := api.catalogService.EnableSkill(ctr.ID, req.SkillName, cfgStr); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "enabled", "skill": req.SkillName})
 }
 
-// DisableSkill disables a skill for the user.
-func (s *StoreAPI) DisableSkill(c *gin.Context) {
+// DisableSkill disables a skill for the container.
+func (api *ContainerAPI) DisableSkill(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
 	name := c.Param("name")
-	openid := c.Query("openid")
-	if openid == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "openid query param is required"})
-		return
-	}
-	u, err := s.userService.FindByOpenID(openid)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-		return
-	}
-	if err := s.catalogService.DisableSkill(u.ID, name); err != nil {
+	if err := api.catalogService.DisableSkill(ctr.ID, name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "disabled", "skill": name})
 }
 
-// --- User MCP Endpoints ---
+// --- Container MCPs ---
 
-// GetUserMCPs returns the user's enabled MCP servers.
-func (s *StoreAPI) GetUserMCPs(c *gin.Context) {
-	u, ok := s.resolveUser(c)
+// GetContainerMCPs returns the container's enabled MCP servers.
+func (api *ContainerAPI) GetContainerMCPs(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
 	if !ok {
 		return
 	}
-	items, err := s.catalogService.GetUserMCPs(u.ID)
+	items, err := api.catalogService.GetContainerMCPs(ctr.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -247,23 +361,21 @@ func (s *StoreAPI) GetUserMCPs(c *gin.Context) {
 }
 
 type addMCPReq struct {
-	OpenID  string          `json:"openid" binding:"required"`
 	MCPName string          `json:"mcp_name" binding:"required"`
 	Command string          `json:"command"`
 	Args    json.RawMessage `json:"args"`
 	Env     json.RawMessage `json:"env"`
 }
 
-// AddUserMCP adds an MCP server for the user.
-func (s *StoreAPI) AddUserMCP(c *gin.Context) {
+// AddContainerMCP adds an MCP server for the container.
+func (api *ContainerAPI) AddContainerMCP(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
 	var req addMCPReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	u, err := s.userService.FindByOpenID(req.OpenID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
@@ -272,7 +384,7 @@ func (s *StoreAPI) AddUserMCP(c *gin.Context) {
 	argsStr := string(req.Args)
 	envStr := string(req.Env)
 	if command == "" {
-		mcpCatalog, _ := s.catalogService.ListMCPCatalog()
+		mcpCatalog, _ := api.catalogService.ListMCPCatalog()
 		for _, mc := range mcpCatalog {
 			if mc.Name == req.MCPName {
 				command = mc.Command
@@ -294,7 +406,7 @@ func (s *StoreAPI) AddUserMCP(c *gin.Context) {
 		Args:    argsStr,
 		Env:     envStr,
 	}
-	if err := s.catalogService.AddUserMCP(u.ID, mcp); err != nil {
+	if err := api.catalogService.AddContainerMCP(ctr.ID, mcp); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -302,23 +414,21 @@ func (s *StoreAPI) AddUserMCP(c *gin.Context) {
 }
 
 type updateMCPReq struct {
-	OpenID  string          `json:"openid" binding:"required"`
 	Command string          `json:"command"`
 	Args    json.RawMessage `json:"args"`
 	Env     json.RawMessage `json:"env"`
 }
 
-// UpdateUserMCP updates an MCP server config for the user.
-func (s *StoreAPI) UpdateUserMCP(c *gin.Context) {
+// UpdateContainerMCP updates an MCP server config for the container.
+func (api *ContainerAPI) UpdateContainerMCP(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
 	name := c.Param("name")
 	var req updateMCPReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	u, err := s.userService.FindByOpenID(req.OpenID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 	updates := make(map[string]any)
@@ -331,27 +441,21 @@ func (s *StoreAPI) UpdateUserMCP(c *gin.Context) {
 	if len(req.Env) > 0 {
 		updates["env"] = string(req.Env)
 	}
-	if err := s.catalogService.UpdateUserMCP(u.ID, name, updates); err != nil {
+	if err := api.catalogService.UpdateContainerMCP(ctr.ID, name, updates); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "updated", "mcp": name})
 }
 
-// RemoveUserMCP removes an MCP server for the user.
-func (s *StoreAPI) RemoveUserMCP(c *gin.Context) {
+// RemoveContainerMCP removes an MCP server for the container.
+func (api *ContainerAPI) RemoveContainerMCP(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
 	name := c.Param("name")
-	openid := c.Query("openid")
-	if openid == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "openid query param is required"})
-		return
-	}
-	u, err := s.userService.FindByOpenID(openid)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-		return
-	}
-	if err := s.catalogService.RemoveUserMCP(u.ID, name); err != nil {
+	if err := api.catalogService.RemoveContainerMCP(ctr.ID, name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -360,59 +464,108 @@ func (s *StoreAPI) RemoveUserMCP(c *gin.Context) {
 
 // --- Apply Changes ---
 
-type applyReq struct {
-	OpenID string `json:"openid" binding:"required"`
+// ApplyChanges regenerates openclaw.json with container's skill/MCP config and restarts.
+func (api *ContainerAPI) ApplyChanges(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+	if ctr.ContainerID == "" || ctr.ContainerName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "container has no Docker instance"})
+		return
+	}
+	if err := api.containerService.ApplyChanges(ctr); err != nil {
+		logger.Error("Failed to apply changes", "container_id", ctr.ID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "applied",
+		"message": "Configuration updated and container restarted",
+	})
 }
 
-// ApplyChanges regenerates openclaw.json with user's skill/MCP config and restarts the container.
-func (s *StoreAPI) ApplyChanges(c *gin.Context) {
-	var req applyReq
-	if err := c.ShouldBindJSON(&req); err != nil {
+// RestartContainer restarts a container's Docker instance to recover crashed gateway.
+func (api *ContainerAPI) RestartContainer(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+	if err := api.containerService.RestartContainer(ctr); err != nil {
+		logger.Error("Failed to restart container", "container_id", ctr.ID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "restarted",
+		"message": "Container restarted, gateway should recover in a few seconds",
+	})
+}
+
+// --- Skill Catalog Endpoints ---
+
+func (api *ContainerAPI) ListSkillCatalog(c *gin.Context) {
+	items, err := api.catalogService.ListSkillCatalog()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (api *ContainerAPI) CreateSkillCatalog(c *gin.Context) {
+	var item catalog.SkillCatalog
+	if err := c.ShouldBindJSON(&item); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if err := api.catalogService.CreateSkillCatalog(&item); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "created", "skill": item})
+}
 
-	u, err := s.userService.FindByOpenID(req.OpenID)
+func (api *ContainerAPI) DeleteSkillCatalog(c *gin.Context) {
+	name := c.Param("name")
+	if err := api.catalogService.DeleteSkillCatalog(name); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "deleted", "name": name})
+}
+
+// --- MCP Catalog Endpoints ---
+
+func (api *ContainerAPI) ListMCPCatalog(c *gin.Context) {
+	items, err := api.catalogService.ListMCPCatalog()
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	c.JSON(http.StatusOK, items)
+}
 
-	if u.ContainerID == "" || u.ContainerName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user has no container"})
+func (api *ContainerAPI) CreateMCPCatalog(c *gin.Context) {
+	var item catalog.MCPCatalog
+	if err := c.ShouldBindJSON(&item); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Build extras from DB
-	skills, skillDirs, mcps, buildErr := s.catalogService.BuildOpenClawExtras(u.ID)
-	if buildErr != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("build extras: %v", buildErr)})
+	if err := api.catalogService.CreateMCPCatalog(&item); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"status": "created", "mcp": item})
+}
 
-	var extras *container.OpenClawExtras
-	if len(skills) > 0 || len(mcps) > 0 {
-		extras = &container.OpenClawExtras{
-			Skills:    skills,
-			SkillDirs: skillDirs,
-			MCPs:      mcps,
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
-	defer cancel()
-
-	if err := s.containerMgr.RegenerateConfig(ctx, u.ContainerName, u.ContainerID, &s.cfg.OpenClaw, extras); err != nil {
-		logger.Error("Failed to apply changes", "user", req.OpenID, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("apply failed: %v", err)})
+func (api *ContainerAPI) DeleteMCPCatalog(c *gin.Context) {
+	name := c.Param("name")
+	if err := api.catalogService.DeleteMCPCatalog(name); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "applied",
-		"openid":  req.OpenID,
-		"message": "Configuration updated and container restarted",
-	})
+	c.JSON(http.StatusOK, gin.H{"status": "deleted", "name": name})
 }
 
 // --- Knowledge Base Endpoints ---
@@ -425,9 +578,8 @@ type knowledgeEntry struct {
 	Items []knowledgeEntry `json:"items,omitempty"`
 }
 
-// ListKnowledgeFiles returns the file tree of the shared knowledge directory.
-func (s *StoreAPI) ListKnowledgeFiles(c *gin.Context) {
-	hostDir := s.cfg.KnowledgeBase.HostDir
+func (api *ContainerAPI) ListKnowledgeFiles(c *gin.Context) {
+	hostDir := api.cfg.KnowledgeBase.HostDir
 	if hostDir == "" {
 		c.JSON(http.StatusOK, []knowledgeEntry{})
 		return
@@ -452,7 +604,7 @@ func scanDir(baseDir, relPath string) ([]knowledgeEntry, error) {
 	for _, de := range dirEntries {
 		name := de.Name()
 		if strings.HasPrefix(name, ".") {
-			continue // skip hidden files
+			continue
 		}
 		entryPath := filepath.Join(relPath, name)
 		entry := knowledgeEntry{
@@ -475,16 +627,14 @@ func scanDir(baseDir, relPath string) ([]knowledgeEntry, error) {
 	return result, nil
 }
 
-// ReadKnowledgeFile reads a text file from the shared knowledge directory.
-func (s *StoreAPI) ReadKnowledgeFile(c *gin.Context) {
-	hostDir := s.cfg.KnowledgeBase.HostDir
+func (api *ContainerAPI) ReadKnowledgeFile(c *gin.Context) {
+	hostDir := api.cfg.KnowledgeBase.HostDir
 	reqPath := c.Query("path")
 	if hostDir == "" || reqPath == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
 		return
 	}
 
-	// Prevent path traversal
 	cleanPath := filepath.Clean(reqPath)
 	if strings.Contains(cleanPath, "..") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
@@ -493,7 +643,6 @@ func (s *StoreAPI) ReadKnowledgeFile(c *gin.Context) {
 
 	fullPath := filepath.Join(hostDir, cleanPath)
 
-	// Ensure it's within the knowledge dir
 	absKB, _ := filepath.Abs(hostDir)
 	absFile, _ := filepath.Abs(fullPath)
 	if !strings.HasPrefix(absFile, absKB) {
@@ -511,7 +660,6 @@ func (s *StoreAPI) ReadKnowledgeFile(c *gin.Context) {
 		return
 	}
 
-	// Limit read size to 1MB
 	if info.Size() > 1024*1024 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large (max 1MB)"})
 		return

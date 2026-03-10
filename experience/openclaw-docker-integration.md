@@ -1,6 +1,7 @@
 # OpenClaw Docker 容器集成经验总结
 
 > 截至 2026-03-06，基于 `ghcr.io/openclaw/openclaw:latest` (v2026.3.2)
+> 2026-03-09 更新：架构已重构为 Account 1:N Container 模型，微信相关代码已移除。以下 Docker/OpenClaw 技术细节仍然有效。
 
 ---
 

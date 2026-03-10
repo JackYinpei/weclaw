@@ -16,10 +16,7 @@ import (
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
 	"github.com/qcy/weclaw/internal/openclaw"
-	"github.com/qcy/weclaw/internal/router"
 	"github.com/qcy/weclaw/internal/store"
-	"github.com/qcy/weclaw/internal/user"
-	"github.com/qcy/weclaw/internal/wechat"
 	"github.com/qcy/weclaw/pkg/logger"
 )
 
@@ -59,16 +56,9 @@ func main() {
 	}
 
 	// Initialize services
-	userService := user.NewService(db.DB(), &cfg.Quota)
 	catalogService := catalog.NewService(db.DB())
 	openclawClient := openclaw.NewClient()
-	wechatAPI := wechat.NewAPI(&cfg.WeChat)
-
-	// Initialize message router
-	msgRouter := router.NewMessageRouter(userService, containerMgr, openclawClient, wechatAPI, cfg, catalogService)
-
-	// Initialize WeChat handler
-	wechatHandler := wechat.NewHandler(&cfg.WeChat, msgRouter)
+	containerService := container.NewService(db.DB(), containerMgr, catalogService, cfg)
 
 	// Setup Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -76,11 +66,11 @@ func main() {
 	r.Use(gin.Recovery())
 	r.Use(requestLoggerMiddleware())
 
-	// Simple CORS middleware for local testing
+	// CORS middleware
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Container-ID")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -91,25 +81,18 @@ func main() {
 	// Serve static files from the 'web' directory
 	r.Static("/web", "./web")
 
-	// Register routes
-	wechatHandler.RegisterRoutes(r)
-
 	// Register Auth API routes
 	accountRepo := account.NewSQLiteRepository(db.DB())
 	authAPI := api.NewAuthAPI(accountRepo)
 	authAPI.RegisterRoutes(r)
 
-	// Register test API routes
-	testAPI := api.NewTestAPI(cfg, userService, containerMgr, openclawClient)
-	testAPI.RegisterRoutes(r)
+	// Register Container API routes (CRUD + chat + skills/MCP + store)
+	containerAPI := api.NewContainerAPI(cfg, containerService, catalogService, containerMgr, openclawClient)
+	containerAPI.RegisterRoutes(r)
 
 	// Register OpenAI compatible API routes
-	openaiAPI := api.NewOpenAIAPI(cfg, userService, containerMgr, openclawClient)
+	openaiAPI := api.NewOpenAIAPI(cfg, containerService, containerMgr, openclawClient)
 	openaiAPI.RegisterRoutes(r)
-
-	// Register Store API routes (skill/MCP store + user config)
-	storeAPI := api.NewStoreAPI(cfg, catalogService, userService, containerMgr)
-	storeAPI.RegisterRoutes(r)
 
 	// Health check endpoint
 	r.GET("/healthz", func(c *gin.Context) {
@@ -121,10 +104,7 @@ func main() {
 	})
 
 	// Start idle container cleanup routine
-	go startIdleContainerCleanup(userService, containerMgr, cfg.Docker.IdleTimeoutMinutes)
-
-	// Start daily quota reset routine
-	go startDailyQuotaReset(userService)
+	go startIdleContainerCleanup(containerService, containerMgr, cfg.Docker.IdleTimeoutMinutes)
 
 	// Start HTTP server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -180,49 +160,36 @@ func requestLoggerMiddleware() gin.HandlerFunc {
 }
 
 // startIdleContainerCleanup periodically checks and sleeps idle containers.
-func startIdleContainerCleanup(userService *user.Service, containerMgr *container.Manager, idleMinutes int) {
+func startIdleContainerCleanup(containerService *container.Service, containerMgr *container.Manager, idleMinutes int) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		idleUsers, err := userService.GetIdleUsers(idleMinutes)
+		idleContainers, err := containerService.GetIdleContainers(idleMinutes)
 		if err != nil {
-			logger.Error("Failed to get idle users", "error", err)
+			logger.Error("Failed to get idle containers", "error", err)
 			continue
 		}
 
-		for _, u := range idleUsers {
-			if u.ContainerID == "" {
+		for _, c := range idleContainers {
+			if c.ContainerID == "" {
 				continue
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			if err := containerMgr.StopContainer(ctx, u.ContainerID); err != nil {
+			idPrefix := c.ContainerID
+			if len(idPrefix) > 12 {
+				idPrefix = idPrefix[:12]
+			}
+			if err := containerMgr.StopContainer(ctx, c.ContainerID); err != nil {
 				logger.Error("Failed to stop idle container",
-					"user", u.OpenID, "container", u.ContainerID[:12], "error", err)
+					"id", c.ID, "container", idPrefix, "error", err)
 			} else {
-				_ = userService.UpdateStatus(u.OpenID, user.StatusSleeping)
+				_ = containerService.UpdateStatus(c.ID, "sleeping")
 				logger.Info("Container put to sleep",
-					"user", u.OpenID, "container", u.ContainerID[:12])
+					"id", c.ID, "container", idPrefix)
 			}
 			cancel()
-		}
-	}
-}
-
-// startDailyQuotaReset resets daily message quotas at midnight.
-func startDailyQuotaReset(userService *user.Service) {
-	for {
-		now := time.Now()
-		// Calculate time until next midnight
-		next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
-		duration := next.Sub(now)
-
-		logger.Info("Next quota reset scheduled", "in", duration.String())
-		time.Sleep(duration)
-
-		if err := userService.ResetDailyQuotas(); err != nil {
-			logger.Error("Failed to reset daily quotas", "error", err)
 		}
 	}
 }

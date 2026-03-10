@@ -1,53 +1,83 @@
-# WeClaw (微信 + OpenClaw 网关)
+# WeClaw (Web + OpenClaw 网关)
 
-WeClaw 是一个高性能的 Golang 后端网关桥接服务。它专门设计用于**连接微信公众号平台和个人专属的 OpenClaw 本地化大模型容器**。
+WeClaw 是一个高性能的 Golang 后端网关桥接服务，提供 **Web 端多容器管理平台**，让每个注册用户通过浏览器创建和管理多个独立的 OpenClaw AI 助手容器。
 
-借助 WeClaw，任何人在关注你的微信公众号后，都会在你的服务器上全自动拉起并隔离分配一台跑着 OpenClaw 的 Docker 专属”大脑容器”。用户只需在微信里发一句文字，即可和自己的大模型 AI 助手展开持久的、个性化的智能对话。
+每个用户（Account）可以创建多个 Docker 容器，每个容器运行独立的 OpenClaw 实例。通过 Web Dashboard 管理容器生命周期、实时对话、安装 Skills 和 MCP Server。
 
-## ✨ 核心特性
 
-- 🚀 **全自动生命周期管理**。通过微信监听并注册用户状态，全自动为新用户在后台初始化建立他们相互独立的 OpenClaw AI 大脑。
-- 🛡️ **高安全隔离与自愈机制**。每个用户容器彼此隔离，底层配备 JWT 鉴权和系统状态监测引擎。若用户因某些问题被异常释放容器，下一次沟通会自动进行热重载恢复（自愈）。
-- 📉 **动态资源优化**。采用”非活动睡眠”技术，当微信用户长达 30 分钟不发消息时，将自动将其专属 OpenClaw 守护进程转入睡眠休眠（不清除数据状态，仅挂起），在下次聊天时瞬间热启动（Wakeup），极大节省服务器算力与内存池资源。
-- 🧩 **Skills & MCP 商店**。内置 Skill 和 MCP Server 商店系统，管理员可上架扩展能力，用户通过 Web 面板一键安装/卸载，动态注入到各自的 OpenClaw 容器中，无需重建容器。
-- 📚 **共享知识库**。通过全局 Docker Named Volume 挂载只读的共享文档目录到所有容器，让全部用户的 AI 助手都能读取统一的知识资料。
-- ⚙️ **ChatGPT 风格三栏 Web 控制面板**。左侧可折叠侧栏管理已安装的 Skills/MCP，中间商店一键安装，右侧实时对话测试。
 
-## 📸 系统预览图
+## 核心特性
 
-<div align="center">
-    <img src="web/image1.png" alt="WeClaw 控制面板演示 - 登录认证界面" width="48%">
-    <img src="web/image2.png" alt="WeClaw 控制面板演示 - 面板工作台及聊天模拟器" width="48%">
-</div>
+- **Account 1:N Container 多容器架构**。每个注册用户可创建多个独立的 OpenClaw 容器，各容器状态/消息/扩展配置完全隔离。
+- **WebSocket + SSE 流式对话**。前端通过 WebSocket 连接后端，后端通过 SSE 流式获取 Gateway 响应，用户看到逐 token 实时输出，无超时限制。自动重连（指数退避）。
+- **Container Dashboard**。Web 端卡片式 Dashboard，一目了然查看所有容器状态，一键创建/删除/连接。
+- **JWT 权限隔离**。所有 API 从 JWT 的 account_id 出发，用户只能看到和操作自己的容器。
+- **动态资源优化**。非活跃容器自动睡眠，下次对话时瞬间热启动，节省服务器资源。
+- **Skills & MCP 商店**。内置 Skill 和 MCP Server 商店，管理员上架扩展能力，用户一键安装/卸载，动态注入到各自的容器中。
+- **共享知识库**。通过宿主机目录 Bind Mount 到所有容器（只读），管理员放入文件即可全局共享。
+- **OpenAI 兼容 API**。提供 `/v1/chat/completions` 端点，可接入第三方工具。
 
-## 🔧 快速启动
+## 界面展示
 
-1. **环境准备：** 确保当前系统安装 Go 1.25.0+ 以及拥有操作 Docker 的权限。
-2. **初始化配置文件的环境变量：** （支持编辑 `configs/config.yaml` 或者将诸如 `WECLAW_OPENCLAW_API_KEY` 等直接写入 Linux）。
-3. **运行或编译项目：**
+### 1. OpenClaw 创建文件并写入共享知识库
+
+下图展示 OpenClaw 在共享知识库中创建文件并写入内容的效果。
+
+![OpenClaw 创建文件并写入共享知识库](./web/image1.png)
+
+### 2. 另一个用户的 OpenClaw 读取共享知识库
+
+下图展示另一个用户的 OpenClaw 读取共享知识库内容的效果，验证共享知识库可被不同容器访问。
+
+![另一个用户的 OpenClaw 读取共享知识库](./web/image2.png)
+
+### 3. OpenClaw Container Dashboard
+
+下图展示 Web 端的 OpenClaw Container Dashboard，可用于创建、查看和管理多个容器。
+
+![OpenClaw Container Dashboard](./web/image3.png)
+
+## 快速启动
+
+1. **环境准备：** Go 1.25.0+ 以及 Docker。
+2. **配置：** 编辑 `configs/config.yaml` 或设置环境变量（`WECLAW_OPENCLAW_API_KEY` 等）。
+3. **运行：**
    ```console
-   # 直接开发调试启动
+   # 开发调试
    go run cmd/weclaw/main.go
-   
-   # 或者先构建在运行
+
+   # 构建运行
    go build -o bin/weclaw cmd/weclaw/main.go
    ./bin/weclaw
    ```
-4. **访问控制管理面板：**
-   通过浏览器访问 `http://127.0.0.1:8080/web/index.html`。
-   > _提示：第一次访问时需要向后端注册或填写你的管理员凭证以登录工作台，之后会自动用 Token 验证调用内部系统容器_。
+4. **访问控制面板：** `http://127.0.0.1:8080/web/index.html`
+   > 首次访问需注册账号并登录。
 
-## 📖 面向开发人员与贡献者
-查看我们总结的第一手技术防坑和踩坑开发指南，请参阅本工程中的：[CLAUDE.md](./CLAUDE.md)
+## 使用流程
 
-我们解决了很多如：JSON配置映射异常、环境变量被刻意忽略、并发网络死锁以及 Docker 回收引发越界宕机等大量疑难杂症。
-详细探索各次 Bug 定位与解题历史，可跳转查看 `experience/` 目录下相关的笔记。
+### 1. 注册 & 登录
 
-## 🧩 Skills & MCP 商店使用
+打开 Web 面板 → 注册账号 → 登录，获取 JWT 会话。
+
+### 2. 创建容器
+
+Dashboard 页面点击 **+ New Container** → 输入名称 → 系统自动创建 Docker 容器。
+
+### 3. 对话
+
+点击容器卡片上的 **Connect** → 进入对话界面，直接发消息与 AI 交互。消息通过 WebSocket 流式传输，逐 token 实时显示响应内容。
+
+### 4. 安装 Skills / MCP
+
+对话界面左侧栏点击 **+ Store** → 选择扩展 → Install → **Apply Changes** 使配置生效。
+
+### 5. 多容器管理
+
+返回 Dashboard 可创建更多容器，每个容器独立运行、独立配置。
+
+## Skills & MCP 商店
 
 ### 管理员：上架商品
-
-通过 API 向商店添加 Skill 或 MCP Server：
 
 ```bash
 # 添加 Skill 到商店
@@ -63,22 +93,40 @@ curl -X POST http://localhost:8080/api/store/mcps \
   -d '{"name":"tavily","display_name":"Tavily Search","description":"AI search engine","category":"search","icon":"🌐","command":"npx","args":"[\"-y\",\"tavily-mcp@latest\"]","default_env":"{\"TAVILY_API_KEY\":\"your-key\"}"}'
 ```
 
-### 用户：安装并应用
-
-1. 打开 Web 面板 → 点击左侧栏 **Store** 按钮
-2. 在商店中选择需要的 Skill/MCP → 点击 **Install**
-3. 点击左侧栏底部的 **Apply Changes** 按钮
-4. 系统自动重写 `openclaw.json` 并重启容器
-
 ### 共享知识库
 
-管理员直接将文件放入宿主机 `./data/shared-knowledge/` 目录即可：
+管理员直接将文件放入宿主机 `./data/shared-knowledge/` 目录：
 
 ```bash
-# 放置共享文档
 cp -r /path/to/docs/* ./data/shared-knowledge/
 ```
 
-所有用户容器以只读方式在 `/home/node/shared-knowledge` 路径下访问这些文件。系统会自动写入 `AGENTS.md` 告知 OpenClaw agent 该路径，使其纳入系统提示词。
+所有容器以只读方式在 `/home/node/shared-knowledge` 路径下访问这些文件。
 
-Web 控制面板左侧栏会展示知识库文件树，点击文件可直接查看内容。
+## API 端点
+
+| 分类 | 方法 | 路径 | 说明 |
+|------|------|------|------|
+| 认证 | POST | `/api/auth/register` | 注册账号 |
+| 认证 | POST | `/api/auth/login` | 登录获取 JWT |
+| 容器 | GET | `/api/containers` | 列出当前账号所有容器 |
+| 容器 | POST | `/api/containers` | 创建新容器 |
+| 容器 | GET | `/api/containers/:id` | 容器详情 |
+| 容器 | DELETE | `/api/containers/:id` | 删除容器 |
+| 对话 | POST | `/api/containers/:id/send` | 发消息（同步 HTTP） |
+| 对话 | GET | `/api/containers/:id/messages` | 消息历史 |
+| 流式 | GET | `/ws/containers/:id?token=JWT` | WebSocket 流式对话 |
+| 扩展 | GET/POST/DELETE | `/api/containers/:id/skills[/:name]` | 容器 Skill 管理 |
+| 扩展 | GET/POST/PUT/DELETE | `/api/containers/:id/mcps[/:name]` | 容器 MCP 管理 |
+| 扩展 | POST | `/api/containers/:id/apply` | 应用变更并重启 |
+| 商店 | GET/POST/DELETE | `/api/store/skills[/:name]` | Skill 商店 |
+| 商店 | GET/POST/DELETE | `/api/store/mcps[/:name]` | MCP 商店 |
+| 知识库 | GET | `/api/store/knowledge` | 文件树 |
+| 知识库 | GET | `/api/store/knowledge/read?path=xxx` | 读取文件 |
+| 兼容 | POST | `/v1/chat/completions` | OpenAI 兼容（JWT + X-Container-ID） |
+
+## 面向开发者
+
+查看第一手技术防坑和踩坑开发指南：[CLAUDE.md](./CLAUDE.md)
+
+详细 Bug 定位与解题历史：`experience/` 目录。

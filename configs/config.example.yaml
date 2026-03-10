@@ -1,0 +1,31 @@
+# WeClaw 配置文件
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+docker:
+  max_containers: 20
+  port_range_start: 9001
+  port_range_end: 9100
+  idle_timeout_minutes: 30
+  memory_limit: "2g"
+  cpu_limit: "1.0"
+  network_name: "weclaw-net"
+  openclaw_image: "ghcr.io/openclaw/openclaw:latest"
+  # 宿主机目录，每个容器的 ~/.openclaw 会挂载到 {openclaw_host_data_dir}/{容器名}；Linux 下若遇 EACCES 可将该目录 chown 1000:1000
+  openclaw_host_data_dir: "./data/weclaw-openclaw"
+
+openclaw:
+  api_key: "xyz"
+  base_url: "https://api-ai.gitcode.com/v1"
+  model_provider: "openai"
+  model_name: "zai-org/GLM-5"
+  tools_profile: "full"
+
+knowledge_base:
+  host_dir: "./data/shared-knowledge"
+  container_mount: "/home/node/shared-knowledge"
+
+database:
+  driver: "sqlite"
+  dsn: "./data/weclaw.db"

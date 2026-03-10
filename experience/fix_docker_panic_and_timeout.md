@@ -1,5 +1,7 @@
 # Fix Docker Container Panic and Timeouts
 
+> 注意：2026-03-09 架构重构后已移除微信公众号相关代码。容器命名方式改为 `weclaw-openclaw-acct{accountID}-ctr{containerID}`，不再使用 OpenID 前缀。以下踩坑记录仍有参考价值。
+
 我们在使用 OpenClaw 做集成测试过程中遇到了两个主要问题：一个是在创建容器时触发的 Go runtime slice bounds out of range `panic`，以及在发送消息时遇到的 `openclaw agent returned status= summary=` 的超时空响应错误。
 
 ## 问题 1：用户 OpenID 截取引发的 Panic
@@ -48,4 +50,4 @@ runtime error: slice bounds out of range [:12] with length 11
 
 ## 相关衍生操作经验记录
 - 如果遇到端口被“幽灵”进程抢占的报错 (`bind: address already in use`)，在尝试用文本替换结束或者 `ps aux | grep weclaw` 无果时，可以使用最保险的 `lsof -i :占用端口号` 找到真实的 `PID` 强制杀掉进程（`kill -9 <PID>`）。
-- 测试服因为异常退出导致的数据库冗余状态（例如 pending 却无实际 Docker 进程的情况），最好写专门的定时或修复 API 把无容器 ID 映射关系的数据删掉。也可以用开发出的一键测试面板（本期已添加 `web/index.html` 的直观控制台）中点击 `Delete Container` 手动触发进行一键数据库级联清理。
+- 测试中因异常退出导致的数据库冗余状态（例如 pending 却无实际 Docker 进程的情况），可通过 Web Dashboard 点击容器卡片上的 **Delete** 按钮触发数据库级联清理（Container 记录 + 关联的 UserSkill/UserMCP/MessageLog 全部删除）。

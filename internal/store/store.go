@@ -7,7 +7,7 @@ import (
 
 	"github.com/qcy/weclaw/internal/catalog"
 	"github.com/qcy/weclaw/internal/config"
-	"github.com/qcy/weclaw/internal/user"
+	"github.com/qcy/weclaw/internal/container"
 	"github.com/qcy/weclaw/pkg/logger"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -33,7 +33,7 @@ func New(cfg *config.DatabaseConfig) (*Store, error) {
 
 	// Auto-migrate tables
 	if err := db.AutoMigrate(
-		&user.User{}, &user.MessageLog{},
+		&container.Container{}, &container.MessageLog{},
 		&catalog.SkillCatalog{}, &catalog.UserSkill{},
 		&catalog.MCPCatalog{}, &catalog.UserMCP{},
 	); err != nil {

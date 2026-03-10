@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,30 +13,29 @@ import (
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
 	"github.com/qcy/weclaw/internal/openclaw"
-	"github.com/qcy/weclaw/internal/user"
 	"github.com/qcy/weclaw/pkg/logger"
 )
 
 // OpenAIAPI provides OpenAI-compatible API endpoints.
 type OpenAIAPI struct {
-	cfg            *config.Config
-	userService    *user.Service
-	containerMgr   *container.Manager
-	openclawClient *openclaw.Client
+	cfg              *config.Config
+	containerService *container.Service
+	containerMgr     *container.Manager
+	openclawClient   *openclaw.Client
 }
 
 // NewOpenAIAPI creates a new OpenAI API handler.
 func NewOpenAIAPI(
 	cfg *config.Config,
-	userService *user.Service,
+	containerService *container.Service,
 	containerMgr *container.Manager,
 	openclawClient *openclaw.Client,
 ) *OpenAIAPI {
 	return &OpenAIAPI{
-		cfg:            cfg,
-		userService:    userService,
-		containerMgr:   containerMgr,
-		openclawClient: openclawClient,
+		cfg:              cfg,
+		containerService: containerService,
+		containerMgr:     containerMgr,
+		openclawClient:   openclawClient,
 	}
 }
 
@@ -43,32 +43,69 @@ func NewOpenAIAPI(
 func (api *OpenAIAPI) RegisterRoutes(r *gin.Engine) {
 	v1 := r.Group("/v1")
 	{
-		// Supports /v1/chat/completions logic
 		v1.POST("/chat/completions", api.ChatCompletions)
 
-		// For CORS preflight specifically for /v1 (as some clients are strict)
 		v1.OPTIONS("/*path", func(c *gin.Context) {
 			c.Header("Access-Control-Allow-Origin", "*")
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Container-ID")
 			c.Status(http.StatusNoContent)
 		})
 	}
 }
 
 // ChatCompletions simulates the OpenAI Chat Completions API.
-// It uses the Authorization header (Bearer token) as the user OpenID.
-// For example: Authorization: Bearer {openid}
+// Uses JWT auth (Bearer token) and X-Container-ID header to identify the container.
 func (api *OpenAIAPI) ChatCompletions(c *gin.Context) {
-	// 1. Get OpenID from Auth header
+	// 1. Authenticate via JWT
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "Missing Authorization header with token (OpenID)"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "Missing Authorization header"}})
 		return
 	}
-	openID := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 
-	// Parse input request body
+	// Use AuthMiddleware-style JWT parsing inline
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := parseJWTClaims(tokenString)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "Invalid or expired token"}})
+		return
+	}
+
+	accountID := uint(0)
+	if sub, ok := claims["sub"].(float64); ok {
+		accountID = uint(sub)
+	}
+	if accountID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "Invalid token claims"}})
+		return
+	}
+
+	// 2. Get container ID from header
+	containerIDStr := c.GetHeader("X-Container-ID")
+	if containerIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "X-Container-ID header is required"}})
+		return
+	}
+	containerID, err := strconv.ParseUint(containerIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid X-Container-ID"}})
+		return
+	}
+
+	// 3. Resolve container with ownership check
+	ctr, err := api.containerService.GetByID(uint(containerID), accountID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "Container not found"}})
+		return
+	}
+
+	if ctr.ContainerID == "" || ctr.ContainerPort == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Container has no Docker instance. Status: " + ctr.Status}})
+		return
+	}
+
+	// 4. Parse request body
 	var req struct {
 		Model    string `json:"model"`
 		Messages []struct {
@@ -83,19 +120,7 @@ func (api *OpenAIAPI) ChatCompletions(c *gin.Context) {
 		return
 	}
 
-	// 2. Find User and specific state
-	u, err := api.userService.FindByOpenID(openID)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "User not found. Please register first via WeChat or test APIs"}})
-		return
-	}
-
-	if u.ContainerID == "" || u.ContainerPort == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "User has no container attached. User status: " + string(u.Status)}})
-		return
-	}
-
-	// 3. Extract the last prompt sent by User
+	// 5. Extract the last user message
 	var lastPrompt string
 	for i := len(req.Messages) - 1; i >= 0; i-- {
 		if req.Messages[i].Role == "user" {
@@ -109,51 +134,35 @@ func (api *OpenAIAPI) ChatCompletions(c *gin.Context) {
 		return
 	}
 
-	// 4. Check quota and status
-	allowed, err := api.userService.CheckQuota(openID)
-	if err != nil {
-		logger.Error("Failed to check quota", "openid", openID, "error", err)
-	}
-	if !allowed {
-		c.JSON(http.StatusTooManyRequests, gin.H{"error": gin.H{"message": "Quota exceeded for today"}})
+	// 6. Wake up if sleeping
+	if err := api.containerService.EnsureRunning(ctr); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Failed to wake up container"}})
 		return
 	}
 
-	if u.Status == user.StatusSleeping {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
-		defer cancel()
-		if err := api.containerMgr.StartContainer(ctx, u.ContainerID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Failed to wake up container"}})
-			return
-		}
-		_ = api.userService.UpdateStatus(openID, user.StatusActive)
-		time.Sleep(3 * time.Second)
-	}
-
-	// 5. Send message to OpenClaw
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
+	// 7. Send message to OpenClaw
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
 	defer cancel()
 
-	response, err := api.openclawClient.SendMessage(ctx, u.ContainerName, lastPrompt)
+	response, err := api.openclawClient.SendMessage(ctx, ctr.ContainerPort, ctr.GatewayToken, lastPrompt)
 	if err != nil {
-		logger.Error("OpenAI API OpenClaw Send Error", "openid", openID, "error", err)
+		logger.Error("OpenAI API OpenClaw Send Error", "container_id", ctr.ID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": fmt.Sprintf("OpenClaw error: %v", err)}})
 		return
 	}
 
-	// Logging and updating activity
-	_ = api.userService.LogMessage(u.ID, "incoming", "openai_api", lastPrompt)
-	_ = api.userService.LogMessage(u.ID, "outgoing", "openai_api", response)
-	_ = api.userService.IncrementMsgCount(openID)
-	_ = api.userService.TouchActivity(openID)
+	// Log and update activity
+	_ = api.containerService.LogMessage(ctr.ID, "incoming", "openai_api", lastPrompt)
+	_ = api.containerService.LogMessage(ctr.ID, "outgoing", "openai_api", response)
+	_ = api.containerService.TouchActivity(ctr.ID)
 
 	responseID := fmt.Sprintf("chatcmpl-%s", time.Now().Format("20060102150405"))
 	modelName := req.Model
 	if modelName == "" {
-		modelName = "weclaw-openclaw" // fallback
+		modelName = "weclaw-openclaw"
 	}
 
-	// 6. Return response
+	// 8. Return response
 	if req.Stream {
 		c.Writer.Header().Set("Content-Type", "text/event-stream")
 		c.Writer.Header().Set("Cache-Control", "no-cache")
@@ -216,4 +225,13 @@ func (api *OpenAIAPI) ChatCompletions(c *gin.Context) {
 			"total_tokens":      (strings.Count(lastPrompt, "") - 1) + (strings.Count(response, "") - 1),
 		},
 	})
+}
+
+// parseJWTClaims parses and validates a JWT token string, returning claims.
+func parseJWTClaims(tokenString string) (map[string]interface{}, error) {
+	token, err := parseJWT(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
 }

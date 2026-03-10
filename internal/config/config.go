@@ -10,11 +10,9 @@ import (
 // Config holds all configuration for the application.
 type Config struct {
 	Server        ServerConfig        `mapstructure:"server"`
-	WeChat        WeChatConfig        `mapstructure:"wechat"`
 	Docker        DockerConfig        `mapstructure:"docker"`
 	OpenClaw      OpenClawConfig      `mapstructure:"openclaw"`
 	Database      DatabaseConfig      `mapstructure:"database"`
-	Quota         QuotaConfig         `mapstructure:"quota"`
 	KnowledgeBase KnowledgeBaseConfig `mapstructure:"knowledge_base"`
 }
 
@@ -22,14 +20,6 @@ type Config struct {
 type ServerConfig struct {
 	Port int    `mapstructure:"port"`
 	Host string `mapstructure:"host"`
-}
-
-// WeChatConfig holds WeChat Official Account configuration.
-type WeChatConfig struct {
-	Token          string `mapstructure:"token"`
-	AppID          string `mapstructure:"app_id"`
-	AppSecret      string `mapstructure:"app_secret"`
-	EncodingAESKey string `mapstructure:"encoding_aes_key"`
 }
 
 // DockerConfig holds Docker container management configuration.
@@ -42,16 +32,16 @@ type DockerConfig struct {
 	CPULimit            string `mapstructure:"cpu_limit"`
 	NetworkName         string `mapstructure:"network_name"`
 	OpenClawImage       string `mapstructure:"openclaw_image"`
-	OpenClawHostDataDir string `mapstructure:"openclaw_host_data_dir"` // 宿主机目录，用于挂载每个容器的 ~/.openclaw（配置+会话等）
+	OpenClawHostDataDir string `mapstructure:"openclaw_host_data_dir"`
 }
 
 // OpenClawConfig holds OpenClaw integration configuration.
 type OpenClawConfig struct {
-	APIKey        string `mapstructure:"api_key"`
-	BaseURL       string `mapstructure:"base_url"`
+	APIKey       string `mapstructure:"api_key"`
+	BaseURL      string `mapstructure:"base_url"`
 	ModelProvider string `mapstructure:"model_provider"`
-	ModelName     string `mapstructure:"model_name"`
-	ToolsProfile  string `mapstructure:"tools_profile"`
+	ModelName    string `mapstructure:"model_name"`
+	ToolsProfile string `mapstructure:"tools_profile"`
 }
 
 // DatabaseConfig holds database configuration.
@@ -60,15 +50,10 @@ type DatabaseConfig struct {
 	DSN    string `mapstructure:"dsn"`
 }
 
-// QuotaConfig holds usage quota configuration.
-type QuotaConfig struct {
-	MaxMessagesPerDay int `mapstructure:"max_messages_per_day"`
-}
-
 // KnowledgeBaseConfig holds shared knowledge base configuration.
 type KnowledgeBaseConfig struct {
-	HostDir        string `mapstructure:"host_dir"`        // 宿主机共享知识库目录
-	ContainerMount string `mapstructure:"container_mount"` // 容器内挂载路径
+	HostDir        string `mapstructure:"host_dir"`
+	ContainerMount string `mapstructure:"container_mount"`
 }
 
 // Load reads configuration from file and environment variables.
@@ -92,7 +77,6 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("knowledge_base.container_mount", "/home/node/shared-knowledge")
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "./data/weclaw.db")
-	v.SetDefault("quota.max_messages_per_day", 50)
 
 	// Read config file
 	if configPath != "" {
@@ -108,7 +92,6 @@ func Load(configPath string) (*Config, error) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
-		// Config file not found; continue with defaults and env vars
 	}
 
 	// Read environment variables with WECLAW_ prefix

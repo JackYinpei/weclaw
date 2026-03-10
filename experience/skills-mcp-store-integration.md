@@ -1,6 +1,7 @@
 # Skills/MCP 商店与共享知识库集成经验总结
 
 > 2026-03-08，基于 WeClaw Skills/MCP Store 功能开发过程
+> 2026-03-09 更新：架构重构为 Account 1:N Container，UserID 外键改为 ContainerID
 
 ---
 
@@ -92,8 +93,8 @@ MCP Server 配置放在 `openclaw.json` 的 `provider.mcpServers` 下（**不是
 ### 实现细节
 
 `RegenerateConfig()` 方法流程：
-1. 从 DB 查询用户的 `UserSkill` 和 `UserMCP` 记录
-2. 调用 `BuildOpenClawExtras()` 构建 `OpenClawExtras` 结构
+1. 从 DB 查询容器的 `UserSkill` 和 `UserMCP` 记录（通过 `container_id` 外键）
+2. 调用 `BuildOpenClawExtras(containerID)` 构建 `OpenClawExtras` 结构
 3. 调用 `prepareOpenClawHostDir()` 重写宿主机上的 `openclaw.json`
 4. Docker SDK `ContainerStop()` + `ContainerStart()` 重启容器
 
@@ -114,15 +115,22 @@ binds = append(binds, "weclaw-shared-knowledge:/home/node/shared-knowledge:ro")
 
 `:ro`（只读）是关键——防止任何用户容器意外修改共享内容。管理员通过外部方式（`docker cp` 或临时容器）写入内容。
 
-## 5. resolveUser 的 JSON body 消费陷阱
+## 5. resolveContainer 模式（原 resolveUser）
 
-### 问题
+### 变更
 
-在 `store_api.go` 中，`resolveUser()` 方法尝试从 query param 和 JSON body 两个来源获取 `openid`。但 Gin 的 `ShouldBindJSON()` 会消费 `c.Request.Body`，导致后续的 handler 无法再次读取 body。
+架构重构后不再有 `resolveUser(openid)` 模式。所有 API 端点从 URL 中的 `:id` 解析容器 ID，并从 JWT 的 `account_id` 校验所有权：
 
-### 解决方案
+```go
+func (api *ContainerAPI) resolveContainer(c *gin.Context) (*container.Container, bool) {
+    id := c.Param("id")  // 从 URL 取
+    accountID := getAccountID(c)  // 从 JWT 取
+    ctr, err := api.containerService.GetByID(id, accountID)  // WHERE id=? AND account_id=?
+    ...
+}
+```
 
-对于 GET/DELETE 请求使用 query param（`?openid=xxx`），对于 POST/PUT 请求在各自的 handler 中独立解析 body（包含 openid 字段）。`resolveUser()` 仅用于 GET 请求场景。
+GET/DELETE/POST/PUT 全部通过 URL path 中的 container ID 定位，不再需要 openid query param 或 body 字段。
 
 ## 6. GORM replace_all 和 Go 字符串匹配的微妙差异
 
@@ -139,14 +147,14 @@ binds = append(binds, "weclaw-shared-knowledge:/home/node/shared-knowledge:ro")
 
 ### 设计
 
-`UserSkill` 和 `UserMCP` 使用 `(UserID, SkillName)` / `(UserID, MCPName)` 的复合唯一索引：
+`UserSkill` 和 `UserMCP` 使用 `(ContainerID, SkillName)` / `(ContainerID, MCPName)` 的复合唯一索引：
 
 ```go
-UserID    uint   `gorm:"uniqueIndex:idx_user_skill;not null"`
-SkillName string `gorm:"uniqueIndex:idx_user_skill;size:128;not null"`
+ContainerID uint   `gorm:"uniqueIndex:idx_container_skill;not null"`
+SkillName   string `gorm:"uniqueIndex:idx_container_skill;size:128;not null"`
 ```
 
-这确保同一用户不会重复安装同一个 Skill/MCP，GORM 的 `uniqueIndex` tag 名相同即表示属于同一个复合索引。
+这确保同一容器不会重复安装同一个 Skill/MCP，GORM 的 `uniqueIndex` tag 名相同即表示属于同一个复合索引。
 
 ## 8. Docker Named Volume vs 宿主机 Bind Mount 的最终选择
 
@@ -196,20 +204,16 @@ agentsMD := fmt.Sprintf("# Shared Knowledge Base\n\n"+
 os.WriteFile(filepath.Join(hostDir, "AGENTS.md"), []byte(agentsMD), 0644)
 ```
 
-## 10. 前端自动重连：localStorage 持久化用户状态
+## 10. 前端状态管理：localStorage 持久化
 
-### 问题
+### 当前方案
 
-刷新页面后用户需要重新输入 OpenID 并点击连接，体验很差。每个容器是与用户固定绑定的，不应该每次都要手动连接。
+用 `localStorage` 保存 JWT token 和用户信息：
+- 登录成功时：`localStorage.setItem('weclaw_token', token)` + `localStorage.setItem('weclaw_user', JSON.stringify(user))`
+- 页面加载时：检测到已保存的 token 则自动恢复会话并加载 Dashboard
+- 登出时：清除 `weclaw_token` 和 `weclaw_user`
 
-### 解决方案
-
-用 `localStorage` 保存当前连接的 OpenID：
-- 连接成功时：`localStorage.setItem('weclaw_openid', openid)`
-- 页面加载时：检测到已保存的 openid 则自动调 `connectUser()`
-- 切换用户时：`localStorage.removeItem('weclaw_openid')`
-
-同时增加消息历史 API（`GET /api/test/user/:openid/messages`），连接时加载最近 50 条对话记录，而不是显示空白聊天框。
+容器连接状态不持久化——每次刷新回到 Dashboard 视图，用户重新点 Connect 进入对话。
 
 ## 11. 知识库文件读取的路径穿越防护
 

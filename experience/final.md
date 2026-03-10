@@ -1,5 +1,7 @@
 AI 回复了！ 响应在 result.payloads[0].text 中，格式和客户端代码预期的完全一致。第一次调用是 bootstrap（"Who am I?"），之后的消息就正常了。
 
+> 注意：2026-03-09 架构重构后已移除微信公众号和 test_api.go，容器管理通过 Web Dashboard 和 `/api/containers` 系列 API 完成。以下为早期调试过程的历史记录。
+
 之前测试脚本返回"无响应内容"说明 docker exec 的 exit code 可能是非 0（被 client.go 当成 error），或者输出包含了 stderr。让我检查 client.go 的解析逻辑：
 
 完美！ raw_response 是 "测试通过"，wechat_formatted 也是 "测试通过"！整条链路完全跑通了！

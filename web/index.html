@@ -27,23 +27,11 @@
             --text-muted: #94a3b8;
             --text-dim: #64748b;
             --sidebar-width: 280px;
-            --sidebar-collapsed: 0px;
             --header-height: 56px;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', -apple-system, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            height: 100vh;
-            overflow: hidden;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); height: 100vh; overflow: hidden; }
 
         /* === HEADER === */
         header {
@@ -57,1506 +45,1145 @@
             align-items: center;
             z-index: 100;
         }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
+        .header-left { display: flex; align-items: center; gap: 1rem; }
         .sidebar-toggle {
-            background: none;
-            border: 1px solid var(--surface-border);
-            color: var(--text-muted);
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.1rem;
-            transition: all 0.2s;
+            background: none; border: 1px solid var(--surface-border); color: var(--text-muted);
+            width: 36px; height: 36px; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: all 0.2s;
         }
-
-        .sidebar-toggle:hover {
-            background: var(--surface-hover);
-            color: var(--text-main);
-        }
-
+        .sidebar-toggle:hover { background: var(--surface-hover); color: var(--text-main); }
         h1 {
-            font-size: 1.1rem;
-            font-weight: 600;
+            font-size: 1.1rem; font-weight: 600;
             background: linear-gradient(135deg, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
+        .header-right { display: flex; align-items: center; gap: 0.75rem; }
         .user-badge {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            background: var(--surface-color);
-            padding: 0.35rem 0.75rem;
-            border-radius: 6px;
-            border: 1px solid var(--surface-border);
+            font-size: 0.8rem; color: var(--text-muted);
+            background: var(--surface-color); padding: 0.35rem 0.75rem;
+            border-radius: 6px; border: 1px solid var(--surface-border);
         }
+        .user-badge span { color: var(--primary-color); font-weight: 500; }
 
-        .user-badge span {
-            color: var(--primary-color);
-            font-weight: 500;
-        }
-
-        /* === MAIN LAYOUT === */
-        .app-layout {
-            display: flex;
-            height: calc(100vh - var(--header-height));
-        }
+        /* === LAYOUT === */
+        .app-layout { display: flex; height: calc(100vh - var(--header-height)); }
 
         /* === SIDEBAR === */
         .sidebar {
-            width: var(--sidebar-width);
-            min-width: var(--sidebar-width);
-            border-right: 1px solid var(--surface-border);
-            background: rgba(15, 23, 42, 0.6);
-            display: flex;
-            flex-direction: column;
+            width: var(--sidebar-width); min-width: var(--sidebar-width);
+            border-right: 1px solid var(--surface-border); background: rgba(15, 23, 42, 0.6);
+            display: flex; flex-direction: column;
             transition: width 0.25s ease, min-width 0.25s ease, opacity 0.25s ease;
             overflow: hidden;
         }
-
-        .sidebar.collapsed {
-            width: 0;
-            min-width: 0;
-            border-right: none;
-            opacity: 0;
-            pointer-events: none;
-        }
-
+        .sidebar.collapsed { width: 0; min-width: 0; border-right: none; opacity: 0; pointer-events: none; }
         .sidebar-header {
-            padding: 1rem;
-            border-bottom: 1px solid var(--surface-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 1rem; border-bottom: 1px solid var(--surface-border);
+            display: flex; justify-content: space-between; align-items: center;
         }
-
         .sidebar-header h3 {
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
+            font-size: 0.85rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.05em; color: var(--text-muted);
         }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 0.75rem; }
+        .sidebar-section { margin-bottom: 1.25rem; }
+        .sidebar-section-title {
+            font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text-dim); padding: 0 0.5rem; margin-bottom: 0.5rem;
+        }
+        .extension-item {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.5rem; border-radius: 8px; cursor: default; transition: background 0.15s;
+        }
+        .extension-item:hover { background: var(--surface-hover); }
+        .extension-icon { font-size: 1.1rem; width: 28px; text-align: center; }
+        .extension-name { font-size: 0.82rem; color: var(--text-main); flex: 1; }
+        .extension-remove {
+            opacity: 0; background: none; border: none; color: var(--danger-color);
+            cursor: pointer; font-size: 0.85rem; padding: 2px 6px; border-radius: 4px; transition: all 0.15s;
+        }
+        .extension-item:hover .extension-remove { opacity: 1; }
+        .extension-remove:hover { background: var(--danger-dim); }
 
         .store-btn {
-            background: var(--primary-dim);
-            color: var(--primary-color);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            padding: 0.3rem 0.7rem;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
+            background: var(--primary-dim); color: var(--primary-color);
+            border: 1px solid rgba(59, 130, 246, 0.3); padding: 0.3rem 0.7rem;
+            border-radius: 6px; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
         }
-
-        .store-btn:hover {
-            background: rgba(59, 130, 246, 0.25);
-        }
-
-        .store-btn.active {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .sidebar-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0.75rem;
-        }
-
-        .sidebar-section {
-            margin-bottom: 1.25rem;
-        }
-
-        .sidebar-section-title {
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-dim);
-            padding: 0 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .extension-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.5rem;
-            border-radius: 8px;
-            transition: background 0.15s;
-            cursor: default;
-        }
-
-        .extension-item:hover {
-            background: var(--surface-hover);
-        }
-
-        .extension-info {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            min-width: 0;
-        }
-
-        .extension-icon {
-            font-size: 1.1rem;
-            flex-shrink: 0;
-        }
-
-        .extension-name {
-            font-size: 0.82rem;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* Toggle switch */
-        .toggle-switch {
-            position: relative;
-            width: 36px;
-            height: 20px;
-            flex-shrink: 0;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--text-dim);
-            border-radius: 10px;
-            transition: 0.2s;
-        }
-
-        .toggle-slider:before {
-            content: "";
-            position: absolute;
-            height: 16px;
-            width: 16px;
-            left: 2px;
-            bottom: 2px;
-            background: white;
-            border-radius: 50%;
-            transition: 0.2s;
-        }
-
-        .toggle-switch input:checked + .toggle-slider {
-            background: var(--success-color);
-        }
-
-        .toggle-switch input:checked + .toggle-slider:before {
-            transform: translateX(16px);
-        }
-
+        .store-btn:hover { background: rgba(59, 130, 246, 0.25); }
         .sidebar-footer {
-            padding: 0.75rem;
-            border-top: 1px solid var(--surface-border);
+            padding: 0.75rem; border-top: 1px solid var(--surface-border);
+            display: flex; gap: 0.5rem;
+        }
+        .sidebar-footer button {
+            flex: 1; padding: 0.5rem; border-radius: 8px; font-size: 0.8rem;
+            font-weight: 500; cursor: pointer; transition: all 0.2s; border: 1px solid var(--surface-border);
+        }
+        .btn-apply { background: var(--primary-color); color: white; border-color: var(--primary-color) !important; }
+        .btn-apply:hover { background: var(--primary-hover); }
+        .btn-back { background: var(--surface-color); color: var(--text-muted); }
+        .btn-back:hover { background: var(--surface-hover); color: var(--text-main); }
+
+        /* === KNOWLEDGE TREE === */
+        .kb-tree { font-size: 0.8rem; }
+        .kb-dir, .kb-file {
+            padding: 0.25rem 0.4rem; border-radius: 6px; cursor: pointer;
+            display: flex; align-items: center; gap: 0.4rem; transition: background 0.15s;
+            color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .kb-file:hover { background: var(--surface-hover); color: var(--text-main); }
+        .kb-dir:hover { background: var(--surface-hover); }
+        .kb-dir-icon { font-size: 0.75rem; width: 14px; text-align: center; flex-shrink: 0; transition: transform 0.15s; }
+        .kb-dir-icon.open { transform: rotate(90deg); }
+        .kb-children { padding-left: 0.9rem; }
+        .kb-children.collapsed { display: none; }
+        .kb-file-icon { font-size: 0.75rem; width: 14px; text-align: center; flex-shrink: 0; color: var(--text-dim); }
+        .kb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+        .kb-size { font-size: 0.65rem; color: var(--text-dim); flex-shrink: 0; }
+        .kb-empty { font-size: 0.78rem; color: var(--text-dim); padding: 0.5rem; }
+
+        /* === FILE VIEWER MODAL === */
+        .file-viewer-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 600;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .file-viewer-overlay.hidden { display: none; }
+        .file-viewer {
+            background: var(--surface-solid); border: 1px solid var(--surface-border);
+            border-radius: 12px; width: 640px; max-width: 90vw; max-height: 80vh;
+            display: flex; flex-direction: column;
+        }
+        .file-viewer-header {
+            padding: 0.75rem 1rem; border-bottom: 1px solid var(--surface-border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .file-viewer-header h3 { font-size: 0.9rem; font-weight: 600; }
+        .file-viewer-close {
+            background: none; border: 1px solid var(--surface-border); color: var(--text-muted);
+            width: 28px; height: 28px; border-radius: 6px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 0.9rem; transition: all 0.2s;
+        }
+        .file-viewer-close:hover { background: var(--surface-hover); color: var(--text-main); }
+        .file-viewer-body {
+            flex: 1; overflow: auto; padding: 1rem;
+            font-size: 0.82rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+            font-family: 'SF Mono', 'Fira Code', monospace; color: var(--text-muted);
         }
 
-        .apply-btn {
-            width: 100%;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 0.6rem;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
+        /* === MAIN === */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
-        .apply-btn:hover {
-            background: var(--primary-hover);
+        /* === AUTH OVERLAY === */
+        .auth-overlay {
+            position: fixed; inset: 0; background: var(--bg-color); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
         }
-
-        .apply-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .auth-overlay.hidden { display: none; }
+        .auth-card {
+            background: var(--surface-solid); border: 1px solid var(--surface-border);
+            border-radius: 16px; padding: 2.5rem; width: 380px; max-width: 90vw;
         }
-
-        /* === STORE PANEL === */
-        .store-panel {
-            flex: 1;
-            border-right: 1px solid var(--surface-border);
-            display: none;
-            flex-direction: column;
-            background: rgba(15, 23, 42, 0.3);
+        .auth-card h2 {
+            text-align: center; margin-bottom: 1.5rem; font-size: 1.3rem; font-weight: 600;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-
-        .store-panel.visible {
-            display: flex;
+        .auth-card .field { margin-bottom: 1rem; }
+        .auth-card label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.35rem; font-weight: 500; }
+        .auth-card input {
+            width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px;
+            border: 1px solid var(--surface-border); background: var(--bg-color);
+            color: var(--text-main); font-size: 0.9rem; outline: none; transition: border-color 0.2s;
         }
-
-        .store-header {
-            padding: 1rem 1.25rem;
-            border-bottom: 1px solid var(--surface-border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        .auth-card input:focus { border-color: var(--primary-color); }
+        .auth-card .btn-primary {
+            width: 100%; padding: 0.65rem; border: none; border-radius: 8px;
+            background: var(--primary-color); color: white; font-size: 0.9rem;
+            font-weight: 600; cursor: pointer; margin-top: 0.5rem; transition: background 0.2s;
         }
-
-        .store-tabs {
-            display: flex;
-            gap: 0.25rem;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 0.2rem;
-            border-radius: 8px;
+        .auth-card .btn-primary:hover { background: var(--primary-hover); }
+        .auth-toggle {
+            text-align: center; margin-top: 1rem; font-size: 0.8rem; color: var(--text-dim);
         }
+        .auth-toggle a { color: var(--primary-color); cursor: pointer; text-decoration: none; }
+        .auth-error { color: var(--danger-color); font-size: 0.8rem; text-align: center; margin-top: 0.5rem; min-height: 1.2em; }
 
-        .store-tab {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            padding: 0.4rem 0.9rem;
-            border-radius: 6px;
-            font-size: 0.82rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
+        /* === DASHBOARD === */
+        .dashboard {
+            flex: 1; overflow-y: auto; padding: 2rem;
         }
-
-        .store-tab.active {
-            background: var(--surface-solid);
-            color: var(--text-main);
+        .dashboard-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;
         }
-
-        .store-tab:hover:not(.active) {
-            color: var(--text-main);
+        .dashboard-header h2 { font-size: 1.3rem; font-weight: 600; }
+        .btn-new {
+            display: flex; align-items: center; gap: 0.4rem;
+            background: var(--primary-color); color: white; border: none;
+            padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem;
+            font-weight: 500; cursor: pointer; transition: background 0.2s;
         }
-
-        .store-close {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 0.25rem;
+        .btn-new:hover { background: var(--primary-hover); }
+        .container-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;
         }
-
-        .store-close:hover {
-            color: var(--text-main);
+        .container-card {
+            background: var(--surface-color); border: 1px solid var(--surface-border);
+            border-radius: 12px; padding: 1.25rem; transition: all 0.2s;
         }
-
-        .store-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1.25rem;
+        .container-card:hover { border-color: rgba(255,255,255,0.15); }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+        .card-name { font-size: 1rem; font-weight: 600; }
+        .card-status {
+            font-size: 0.7rem; font-weight: 500; padding: 0.2rem 0.5rem;
+            border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em;
         }
-
-        .store-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 1rem;
+        .card-status.active { background: var(--success-dim); color: var(--success-color); }
+        .card-status.sleeping { background: var(--warning-dim); color: var(--warning-color); }
+        .card-status.pending { background: var(--primary-dim); color: var(--primary-color); }
+        .card-status.disabled { background: var(--danger-dim); color: var(--danger-color); }
+        .card-meta { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 1rem; }
+        .card-meta div { margin-bottom: 0.2rem; }
+        .card-actions { display: flex; gap: 0.5rem; }
+        .card-actions button {
+            flex: 1; padding: 0.45rem; border-radius: 8px; font-size: 0.8rem;
+            font-weight: 500; cursor: pointer; transition: all 0.2s; border: 1px solid var(--surface-border);
         }
-
-        .store-card {
-            background: var(--surface-color);
-            border: 1px solid var(--surface-border);
-            border-radius: 12px;
-            padding: 1.25rem;
-            transition: all 0.2s;
+        .btn-connect { background: var(--primary-color); color: white; border-color: var(--primary-color) !important; }
+        .btn-connect:hover { background: var(--primary-hover); }
+        .btn-restart { background: transparent; color: var(--warning-color); border-color: var(--warning-color) !important; }
+        .btn-restart:hover { background: var(--warning-dim); }
+        .btn-delete { background: transparent; color: var(--danger-color); border-color: var(--danger-color) !important; }
+        .btn-delete:hover { background: var(--danger-dim); }
+        .empty-state {
+            text-align: center; padding: 4rem 2rem; color: var(--text-dim);
         }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 1rem; }
+        .empty-state p { font-size: 0.9rem; margin-bottom: 1.5rem; }
 
-        .store-card:hover {
-            border-color: rgba(255, 255, 255, 0.15);
-            transform: translateY(-1px);
-        }
-
-        .card-header {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.75rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .card-icon {
-            font-size: 1.8rem;
-            flex-shrink: 0;
-        }
-
-        .card-meta {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .card-name {
-            font-size: 0.95rem;
-            font-weight: 600;
-            margin-bottom: 0.15rem;
-        }
-
-        .card-category {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .card-desc {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            line-height: 1.5;
-            margin-bottom: 1rem;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .card-action {
-            width: 100%;
-            padding: 0.5rem;
-            border-radius: 8px;
-            font-size: 0.82rem;
-            font-weight: 500;
-            cursor: pointer;
-            border: none;
-            transition: all 0.2s;
-        }
-
-        .card-action.install {
-            background: var(--primary-dim);
-            color: var(--primary-color);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-        }
-
-        .card-action.install:hover {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .card-action.installed {
-            background: var(--success-dim);
-            color: var(--success-color);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-
-        .card-action.installed:hover {
-            background: var(--danger-dim);
-            color: var(--danger-color);
-            border-color: rgba(239, 68, 68, 0.3);
-        }
-
-        .store-empty {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-dim);
-        }
-
-        .store-empty-icon {
-            font-size: 2.5rem;
-            margin-bottom: 0.75rem;
-        }
-
-        /* === CHAT PANEL === */
-        .chat-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 360px;
-            overflow: hidden;
-        }
-
+        /* === CHAT === */
+        .chat-view { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+        .chat-view.hidden { display: none; }
         .chat-header {
-            padding: 0.75rem 1.25rem;
-            border-bottom: 1px solid var(--surface-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-shrink: 0;
+            padding: 0.75rem 1rem; border-bottom: 1px solid var(--surface-border);
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(15, 23, 42, 0.6); flex-shrink: 0;
         }
-
-        .chat-header h3 {
-            font-size: 0.9rem;
-            font-weight: 600;
+        .chat-header-left { display: flex; align-items: center; gap: 0.75rem; }
+        .chat-header-left .back-btn {
+            background: none; border: 1px solid var(--surface-border); color: var(--text-muted);
+            width: 32px; height: 32px; border-radius: 6px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; transition: all 0.2s;
         }
-
-        .chat-status {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            font-size: 0.75rem;
+        .chat-header-left .back-btn:hover { background: var(--surface-hover); color: var(--text-main); }
+        .chat-title { font-size: 0.95rem; font-weight: 600; }
+        .chat-subtitle { font-size: 0.75rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.5rem; }
+        .gateway-badge {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            font-size: 0.68rem; font-weight: 500; padding: 0.1rem 0.45rem;
+            border-radius: 99px;
         }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--text-dim);
+        .gateway-badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+        .gateway-badge.starting { background: var(--warning-dim); color: var(--warning-color); }
+        .gateway-badge.starting .dot { background: var(--warning-color); animation: pulse 1s ease-in-out infinite; }
+        .gateway-badge.ready { background: var(--success-dim); color: var(--success-color); }
+        .gateway-badge.ready .dot { background: var(--success-color); }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .messages-area { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; }
+        .message { max-width: 80%; margin-bottom: 0.75rem; }
+        .message.user { margin-left: auto; }
+        .message.assistant { margin-right: auto; }
+        .message-bubble {
+            padding: 0.65rem 0.9rem; border-radius: 12px; font-size: 0.88rem; line-height: 1.5;
+            white-space: pre-wrap; word-break: break-word;
         }
-
-        .status-dot.active {
-            background: var(--success-color);
-            box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+        .message.user .message-bubble { background: var(--primary-color); color: white; border-bottom-right-radius: 4px; }
+        .message.assistant .message-bubble { background: var(--surface-solid); border: 1px solid var(--surface-border); border-bottom-left-radius: 4px; }
+        .message-time { font-size: 0.65rem; color: var(--text-dim); margin-top: 0.2rem; }
+        .message.user .message-time { text-align: right; }
+        .input-area {
+            padding: 0.75rem 1rem; border-top: 1px solid var(--surface-border);
+            display: flex; gap: 0.5rem; background: rgba(15, 23, 42, 0.6); flex-shrink: 0;
         }
-
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1.25rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            min-height: 0;
+        .input-area textarea {
+            flex: 1; resize: none; border: 1px solid var(--surface-border); background: var(--bg-color);
+            color: var(--text-main); padding: 0.6rem 0.75rem; border-radius: 8px;
+            font-size: 0.9rem; outline: none; min-height: 42px; max-height: 120px;
+            font-family: inherit; transition: border-color 0.2s;
         }
-
-        .message {
-            max-width: 85%;
-            padding: 0.75rem 1rem;
-            border-radius: 12px;
-            font-size: 0.875rem;
-            line-height: 1.6;
-            animation: fadeIn 0.3s ease;
-            white-space: pre-wrap;
-            word-break: break-word;
+        .input-area textarea:focus { border-color: var(--primary-color); }
+        .send-btn {
+            background: var(--primary-color); color: white; border: none;
+            padding: 0 1rem; border-radius: 8px; font-size: 0.9rem;
+            cursor: pointer; font-weight: 500; transition: background 0.2s; white-space: nowrap;
         }
+        .send-btn:hover { background: var(--primary-hover); }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .message.user {
-            align-self: flex-end;
-            background: var(--primary-color);
-            color: white;
-            border-bottom-right-radius: 4px;
-        }
-
-        .message.ai {
-            align-self: flex-start;
-            background: var(--surface-color);
-            color: var(--text-main);
-            border: 1px solid var(--surface-border);
-            border-bottom-left-radius: 4px;
-        }
-
-        .message.system {
-            align-self: center;
-            background: var(--warning-dim);
-            color: var(--warning-color);
-            font-size: 0.8rem;
-            border: 1px solid rgba(245, 158, 11, 0.2);
-        }
-
-        .chat-input-area {
-            padding: 1rem 1.25rem;
-            border-top: 1px solid var(--surface-border);
-            display: flex;
-            gap: 0.5rem;
-            flex-shrink: 0;
-        }
-
-        .chat-input-area input {
-            flex: 1;
-            padding: 0.7rem 1rem;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--surface-border);
-            border-radius: 10px;
-            color: var(--text-main);
-            font-size: 0.875rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .chat-input-area input:focus {
-            border-color: var(--primary-color);
-        }
-
-        .chat-send-btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 0 1.2rem;
-            border-radius: 10px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-
-        .chat-send-btn:hover {
-            background: var(--primary-hover);
-        }
-
-        .chat-send-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* === SETUP PANEL (shown when no user selected) === */
-        .setup-panel {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 1.5rem;
-            padding: 2rem;
-            flex: 1;
-        }
-
-        .setup-card {
-            background: var(--surface-color);
-            border: 1px solid var(--surface-border);
-            border-radius: 16px;
-            padding: 2rem;
-            width: 100%;
-            max-width: 420px;
-        }
-
-        .setup-card h2 {
-            font-size: 1.1rem;
-            margin-bottom: 1.5rem;
-            text-align: center;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-bottom: 0.4rem;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 0.65rem 0.85rem;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--surface-border);
-            border-radius: 8px;
-            color: var(--text-main);
-            font-size: 0.875rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .form-group input:focus {
-            border-color: var(--primary-color);
-        }
-
-        .setup-actions {
-            display: flex;
-            gap: 0.75rem;
-            margin-top: 1.25rem;
-        }
-
-        .setup-actions button {
-            flex: 1;
-            padding: 0.65rem;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            border: none;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-hover);
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-main);
-            border: 1px solid var(--surface-border) !important;
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.12);
-        }
-
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-
-        /* === TOAST === */
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 0.75rem 1.25rem;
-            background: var(--surface-solid);
-            border: 1px solid var(--surface-border);
-            border-radius: 10px;
-            color: white;
-            font-size: 0.85rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            z-index: 1000;
-        }
-
-        .toast.show { transform: translateY(0); opacity: 1; }
-        .toast.error { border-left: 3px solid var(--danger-color); }
-        .toast.success { border-left: 3px solid var(--success-color); }
-
-        /* === AUTH MODAL === */
+        /* === MODAL === */
         .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(4px);
-            z-index: 2000;
-            justify-content: center;
-            align-items: center;
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 500;
+            display: flex; align-items: center; justify-content: center;
         }
-
-        .modal-overlay.visible {
-            display: flex;
+        .modal-overlay.hidden { display: none; }
+        .modal {
+            background: var(--surface-solid); border: 1px solid var(--surface-border);
+            border-radius: 12px; padding: 1.5rem; width: 360px; max-width: 90vw;
         }
-
-        .modal-card {
-            background: var(--surface-solid);
-            border: 1px solid var(--surface-border);
-            border-radius: 16px;
-            padding: 2rem;
-            width: 380px;
-            max-width: 90%;
+        .modal h3 { font-size: 1rem; margin-bottom: 1rem; }
+        .modal .field { margin-bottom: 1rem; }
+        .modal label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+        .modal input, .modal select {
+            width: 100%; padding: 0.5rem 0.65rem; border-radius: 8px;
+            border: 1px solid var(--surface-border); background: var(--bg-color);
+            color: var(--text-main); font-size: 0.85rem; outline: none;
         }
-
-        .modal-card h2 {
-            font-size: 1.15rem;
-            margin-bottom: 1.5rem;
-            text-align: center;
+        .modal input:focus { border-color: var(--primary-color); }
+        .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+        .modal-actions button {
+            padding: 0.45rem 1rem; border-radius: 8px; font-size: 0.82rem;
+            font-weight: 500; cursor: pointer; transition: all 0.2s;
         }
+        .modal-cancel { background: var(--surface-color); color: var(--text-muted); border: 1px solid var(--surface-border); }
+        .modal-cancel:hover { background: var(--surface-hover); color: var(--text-main); }
+        .modal-confirm { background: var(--primary-color); color: white; border: none; }
+        .modal-confirm:hover { background: var(--primary-hover); }
+        .modal-confirm.danger { background: var(--danger-color); }
+        .modal-confirm.danger:hover { background: #dc2626; }
 
-        .modal-card button {
-            width: 100%;
-            padding: 0.7rem;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 500;
-            cursor: pointer;
-            border: none;
-            background: var(--primary-color);
-            color: white;
-            transition: all 0.2s;
+        /* === STORE MODAL === */
+        .store-items { max-height: 300px; overflow-y: auto; }
+        .store-item {
+            display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem;
+            border-radius: 8px; cursor: pointer; transition: background 0.15s;
+            border: 1px solid transparent; margin-bottom: 0.3rem;
         }
-
-        .modal-card button:hover {
-            background: var(--primary-hover);
+        .store-item:hover { background: var(--surface-hover); border-color: var(--surface-border); }
+        .store-item-icon { font-size: 1.3rem; width: 32px; text-align: center; }
+        .store-item-info { flex: 1; }
+        .store-item-name { font-size: 0.85rem; font-weight: 500; }
+        .store-item-desc { font-size: 0.72rem; color: var(--text-dim); }
+        .store-item-action {
+            background: var(--primary-dim); color: var(--primary-color);
+            border: 1px solid rgba(59,130,246,0.3); padding: 0.25rem 0.6rem;
+            border-radius: 6px; font-size: 0.72rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
         }
-
-        .modal-link {
-            margin-top: 1rem;
-            text-align: center;
+        .store-item-action:hover { background: rgba(59,130,246,0.25); }
+        .store-item-action.installed { background: var(--success-dim); color: var(--success-color); border-color: rgba(16,185,129,0.3); cursor: default; }
+        .store-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .store-tab {
+            padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500;
+            cursor: pointer; transition: all 0.2s; border: 1px solid var(--surface-border);
+            background: transparent; color: var(--text-muted);
         }
+        .store-tab.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
 
-        .modal-link a {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-size: 0.82rem;
-        }
-
-        .modal-link a:hover {
-            text-decoration: underline;
-        }
-
-        /* === FILE TREE === */
-        .file-tree { font-size: 0.8rem; }
-        .file-tree-item {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 0.3rem 0.5rem;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.15s;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .file-tree-item:hover { background: var(--surface-hover); }
-        .file-tree-item .icon { flex-shrink: 0; font-size: 0.9rem; }
-        .file-tree-item .name { overflow: hidden; text-overflow: ellipsis; }
-        .file-tree-children { padding-left: 1rem; }
-
-        /* === SCROLLBAR === */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        /* spinner */
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 2rem; }
     </style>
 </head>
 
 <body>
+    <!-- Auth Overlay -->
+    <div class="auth-overlay" id="authOverlay">
+        <div class="auth-card">
+            <h2 id="authTitle">WeClaw Login</h2>
+            <div id="authForm">
+                <div class="field">
+                    <label>Username</label>
+                    <input type="text" id="authUsername" placeholder="Enter username" autocomplete="username">
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input type="password" id="authPassword" placeholder="Enter password" autocomplete="current-password">
+                </div>
+                <button class="btn-primary" id="authSubmit" onclick="handleAuth()">Login</button>
+                <div class="auth-error" id="authError"></div>
+                <div class="auth-toggle">
+                    <span id="authToggleText">No account? </span>
+                    <a id="authToggleLink" onclick="toggleAuthMode()">Register</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
     <header>
         <div class="header-left">
-            <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#9776;</button>
+            <button class="sidebar-toggle" onclick="toggleSidebar()" id="sidebarToggle">&#9776;</button>
             <h1>WeClaw</h1>
         </div>
         <div class="header-right">
-            <div class="user-badge" id="userBadge" style="display:none;">
-                OpenID: <span id="currentUserLabel">-</span>
+            <div class="user-badge" id="userBadge">
+                <span id="usernameDisplay"></span>
             </div>
-            <button class="sidebar-toggle" onclick="showSetup()" title="Switch user">&#9881;</button>
+            <button class="sidebar-toggle" onclick="logout()" title="Logout">&#x2716;</button>
         </div>
     </header>
 
     <!-- Main Layout -->
     <div class="app-layout">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
+        <!-- Sidebar (shown when in chat view) -->
+        <div class="sidebar collapsed" id="sidebar">
             <div class="sidebar-header">
                 <h3>Extensions</h3>
-                <button class="store-btn" id="storeBtnSidebar" onclick="toggleStore()">Store</button>
+                <button class="store-btn" onclick="openStore()">+ Store</button>
             </div>
             <div class="sidebar-content">
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">Skills</div>
-                    <div id="userSkillsList">
-                        <div style="padding: 0.5rem; color: var(--text-dim); font-size: 0.8rem;">No skills installed</div>
-                    </div>
+                    <div id="skillList"><div class="loading-text">No skills installed</div></div>
                 </div>
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">MCP Servers</div>
-                    <div id="userMCPsList">
-                        <div style="padding: 0.5rem; color: var(--text-dim); font-size: 0.8rem;">No MCP servers installed</div>
-                    </div>
+                    <div id="mcpList"><div class="loading-text">No MCP servers installed</div></div>
                 </div>
                 <div class="sidebar-section">
-                    <div class="sidebar-section-title">Knowledge Base</div>
-                    <div id="knowledgeTree">
-                        <div style="padding: 0.5rem; color: var(--text-dim); font-size: 0.8rem;">Loading...</div>
-                    </div>
+                    <div class="sidebar-section-title">Shared Knowledge</div>
+                    <div id="knowledgeTree" class="kb-tree"><div class="kb-empty">Loading...</div></div>
                 </div>
             </div>
             <div class="sidebar-footer">
-                <button class="apply-btn" onclick="applyChanges()" id="applyBtn" disabled>Apply Changes</button>
+                <button class="btn-back" onclick="backToDashboard()">&#8592; Dashboard</button>
+                <button class="btn-apply" onclick="applyChanges()">Apply Changes</button>
             </div>
-        </aside>
+        </div>
 
-        <!-- Store Panel -->
-        <section class="store-panel" id="storePanel">
-            <div class="store-header">
-                <div class="store-tabs">
-                    <button class="store-tab active" id="tabSkills" onclick="showStoreTab('skills')">Skills</button>
-                    <button class="store-tab" id="tabMCPs" onclick="showStoreTab('mcps')">MCP Servers</button>
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Dashboard View -->
+            <div class="dashboard" id="dashboardView">
+                <div class="dashboard-header">
+                    <h2>Containers</h2>
+                    <button class="btn-new" onclick="openCreateModal()">+ New Container</button>
                 </div>
-                <button class="store-close" onclick="toggleStore()">&times;</button>
+                <div class="container-grid" id="containerGrid">
+                    <div class="loading-text">Loading containers...</div>
+                </div>
             </div>
-            <div class="store-content">
-                <div id="storeSkillsGrid" class="store-grid"></div>
-                <div id="storeMCPsGrid" class="store-grid" style="display:none;"></div>
-            </div>
-        </section>
 
-        <!-- Chat Panel -->
-        <section class="chat-panel" id="chatPanel">
-            <!-- Setup view (no user) -->
-            <div class="setup-panel" id="setupView">
-                <div class="setup-card">
-                    <h2>Connect to Container</h2>
-                    <div class="form-group">
-                        <label>User OpenID</label>
-                        <input type="text" id="openidInput" placeholder="e.g. demo-user-1" value="demo-user-1">
-                    </div>
-                    <div class="setup-actions">
-                        <button class="btn-primary" onclick="connectUser()">Connect</button>
-                        <button class="btn-secondary" onclick="createAndConnect()">Create New</button>
-                    </div>
-                    <div id="setupStatus" style="margin-top:1rem;display:none;">
-                        <div class="extension-item" style="justify-content:center;">
-                            <span style="color:var(--text-muted);font-size:0.85rem;" id="setupStatusText">...</span>
+            <!-- Chat View -->
+            <div class="chat-view hidden" id="chatView">
+                <div class="chat-header">
+                    <div class="chat-header-left">
+                        <button class="back-btn" onclick="backToDashboard()">&#8592;</button>
+                        <div>
+                            <div class="chat-title" id="chatTitle">Container</div>
+                            <div class="chat-subtitle">
+                                <span id="chatSubtitle">Port: ---</span>
+                                <span class="gateway-badge starting" id="gatewayBadge"><span class="dot"></span> Gateway starting...</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Chat view (user connected) -->
-            <div id="chatView" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;">
-                <div class="chat-header">
-                    <h3>Chat</h3>
-                    <div class="chat-status">
-                        <div class="status-dot" id="statusDot"></div>
-                        <span id="statusText" style="color:var(--text-muted);">Offline</span>
-                    </div>
-                </div>
-                <div class="chat-messages" id="chatBox">
-                    <div class="message system">Connect to a container to start chatting.</div>
-                </div>
-                <div class="chat-input-area">
-                    <input type="text" id="messageInput" placeholder="Send a message..."
-                        onkeypress="if(event.key==='Enter')sendMessage()">
-                    <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
+                <div class="messages-area" id="messagesArea"></div>
+                <div class="input-area">
+                    <textarea id="messageInput" rows="1" placeholder="Type a message..." onkeydown="handleInputKey(event)"></textarea>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
                 </div>
             </div>
-        </section>
-    </div>
-
-    <!-- File Viewer Modal -->
-    <div class="modal-overlay" id="fileViewerModal">
-        <div class="modal-card" style="width:700px;max-width:95%;max-height:85vh;display:flex;flex-direction:column;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-                <h2 id="fileViewerTitle" style="font-size:1rem;margin:0;">File</h2>
-                <button class="store-close" onclick="closeFileViewer()" style="font-size:1.4rem;">&times;</button>
-            </div>
-            <pre id="fileViewerContent" style="flex:1;overflow:auto;background:rgba(0,0,0,0.4);border:1px solid var(--surface-border);border-radius:8px;padding:1rem;font-size:0.8rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;margin:0;color:var(--text-main);"></pre>
         </div>
     </div>
 
-    <!-- Toast -->
-    <div id="toast" class="toast"></div>
+    <!-- Create Container Modal -->
+    <div class="modal-overlay hidden" id="createModal">
+        <div class="modal">
+            <h3>Create New Container</h3>
+            <div class="field">
+                <label>Display Name</label>
+                <input type="text" id="newContainerName" placeholder="e.g. My Assistant">
+            </div>
+            <div class="modal-actions">
+                <button class="modal-cancel" onclick="closeCreateModal()">Cancel</button>
+                <button class="modal-confirm" onclick="createContainer()">Create</button>
+            </div>
+        </div>
+    </div>
 
-    <!-- Auth Modal -->
-    <div class="modal-overlay" id="authModal">
-        <div class="modal-card">
-            <h2 id="authTitle">Login</h2>
-            <div class="form-group">
-                <label>Username</label>
-                <input type="text" id="authUsername" placeholder="username">
+    <!-- Delete Confirm Modal -->
+    <div class="modal-overlay hidden" id="deleteModal">
+        <div class="modal">
+            <h3>Delete Container</h3>
+            <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem">
+                Are you sure you want to delete <strong id="deleteContainerName"></strong>? This will remove the Docker container and all associated data.
+            </p>
+            <div class="modal-actions">
+                <button class="modal-cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button class="modal-confirm danger" onclick="confirmDelete()">Delete</button>
             </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="authPassword" placeholder="password"
-                    onkeypress="if(event.key==='Enter')doAuth()">
+        </div>
+    </div>
+
+    <!-- Store Modal -->
+    <div class="modal-overlay hidden" id="storeModal">
+        <div class="modal" style="width:480px">
+            <h3>Extension Store</h3>
+            <div class="store-tabs">
+                <button class="store-tab active" onclick="switchStoreTab('skills')">Skills</button>
+                <button class="store-tab" onclick="switchStoreTab('mcps')">MCP Servers</button>
             </div>
-            <button onclick="doAuth()" id="authBtn">Login</button>
-            <div class="modal-link">
-                <a href="#" onclick="toggleAuthMode()" id="authToggleLink">No account? Register</a>
+            <div class="store-items" id="storeItems">
+                <div class="loading-text">Loading...</div>
             </div>
+            <div class="modal-actions">
+                <button class="modal-cancel" onclick="closeStore()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Viewer Modal -->
+    <div class="file-viewer-overlay hidden" id="fileViewerOverlay" onclick="if(event.target===this)closeFileViewer()">
+        <div class="file-viewer">
+            <div class="file-viewer-header">
+                <h3 id="fileViewerTitle">file.txt</h3>
+                <button class="file-viewer-close" onclick="closeFileViewer()">&#x2715;</button>
+            </div>
+            <div class="file-viewer-body" id="fileViewerBody">Loading...</div>
         </div>
     </div>
 
     <script>
-        // ==================== State ====================
-        const AUTH_BASE = window.location.origin + '/api/auth';
-        const TEST_BASE = window.location.origin + '/api/test';
-        const STORE_BASE = window.location.origin + '/api/store';
-        const USER_BASE = window.location.origin + '/api/user';
+        // State
+        let token = localStorage.getItem('weclaw_token');
+        let currentUser = JSON.parse(localStorage.getItem('weclaw_user') || 'null');
+        let isRegisterMode = false;
+        let containers = [];
+        let activeContainer = null;
+        let storeTab = 'skills';
+        let deleteTargetId = null;
+        let gatewayReady = false;
+        let ws = null;
+        let wsReconnectTimer = null;
+        let wsReconnectDelay = 1000;
+        let streamingRequestId = null;
+        let streamingText = '';
 
-        let authToken = localStorage.getItem('weclaw_token') || null;
-        let isLoginMode = true;
-        let currentUser = null; // openid
-        let currentUserObj = null; // full user object
-
-        let skillCatalog = [];
-        let mcpCatalog = [];
-        let userSkills = [];
-        let userMCPs = [];
-        let storeVisible = false;
-        let sidebarVisible = true;
-        let pendingChanges = false;
-
-        // ==================== Init ====================
-        if (!authToken) {
-            document.getElementById('authModal').classList.add('visible');
-        } else {
-            // Auto-reconnect to saved user
-            const savedOpenID = localStorage.getItem('weclaw_openid');
-            if (savedOpenID) {
-                document.getElementById('openidInput').value = savedOpenID;
-                connectUser();
-            }
+        // Init
+        if (token && currentUser) {
+            document.getElementById('authOverlay').classList.add('hidden');
+            document.getElementById('usernameDisplay').textContent = currentUser.username;
+            loadContainers();
         }
 
-        // ==================== Auth ====================
+        // --- Auth ---
         function toggleAuthMode() {
-            isLoginMode = !isLoginMode;
-            document.getElementById('authTitle').innerText = isLoginMode ? 'Login' : 'Register';
-            document.getElementById('authBtn').innerText = isLoginMode ? 'Login' : 'Register';
-            document.getElementById('authToggleLink').innerText = isLoginMode ? 'No account? Register' : 'Have account? Login';
+            isRegisterMode = !isRegisterMode;
+            document.getElementById('authTitle').textContent = isRegisterMode ? 'WeClaw Register' : 'WeClaw Login';
+            document.getElementById('authSubmit').textContent = isRegisterMode ? 'Register' : 'Login';
+            document.getElementById('authToggleText').textContent = isRegisterMode ? 'Already have an account? ' : 'No account? ';
+            document.getElementById('authToggleLink').textContent = isRegisterMode ? 'Login' : 'Register';
+            document.getElementById('authError').textContent = '';
         }
 
-        async function doAuth() {
-            const u = document.getElementById('authUsername').value.trim();
-            const p = document.getElementById('authPassword').value.trim();
-            if (!u || !p) return showToast('Enter username and password', 'error');
+        async function handleAuth() {
+            const username = document.getElementById('authUsername').value.trim();
+            const password = document.getElementById('authPassword').value;
+            const errorEl = document.getElementById('authError');
+            errorEl.textContent = '';
 
-            const endpoint = isLoginMode ? '/login' : '/register';
+            if (!username || !password) { errorEl.textContent = 'Please fill in all fields'; return; }
+
+            const endpoint = isRegisterMode ? '/api/auth/register' : '/api/auth/login';
             try {
-                const res = await fetch(AUTH_BASE + endpoint, {
+                const res = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: u, password: p })
+                    body: JSON.stringify({ username, password })
                 });
                 const data = await res.json();
-                if (res.ok) {
-                    if (isLoginMode) {
-                        authToken = data.token;
-                        localStorage.setItem('weclaw_token', authToken);
-                        document.getElementById('authModal').classList.remove('visible');
-                        showToast('Login successful');
-                    } else {
-                        showToast('Registration successful, please login');
-                        toggleAuthMode();
-                    }
-                } else {
-                    showToast(data.error || 'Auth failed', 'error');
-                }
-            } catch (err) {
-                showToast(err.message, 'error');
-            }
-        }
+                if (!res.ok) { errorEl.textContent = data.error || 'Request failed'; return; }
 
-        function getAuthHeaders() {
-            return {
-                'Content-Type': 'application/json',
-                'Authorization': authToken ? 'Bearer ' + authToken : ''
-            };
-        }
-
-        function handleApiError(res) {
-            if (res.status === 401) {
-                localStorage.removeItem('weclaw_token');
-                authToken = null;
-                document.getElementById('authModal').classList.add('visible');
-                throw new Error('Session expired. Please login again.');
-            }
-        }
-
-        // ==================== User Connection ====================
-        async function connectUser() {
-            const openid = document.getElementById('openidInput').value.trim();
-            if (!openid) return showToast('Enter an OpenID', 'error');
-
-            try {
-                const res = await fetch(`${TEST_BASE}/user/${openid}`, { headers: getAuthHeaders() });
-                if (!res.ok) {
-                    handleApiError(res);
-                    showToast('User not found. Create first?', 'error');
-                    return;
-                }
-                const data = await res.json();
-                currentUser = openid;
-                currentUserObj = data.user;
-                localStorage.setItem('weclaw_openid', openid);
-                enterChatMode(data);
-            } catch (err) {
-                showToast(err.message, 'error');
-            }
-        }
-
-        async function createAndConnect() {
-            const openid = document.getElementById('openidInput').value.trim();
-            if (!openid) return showToast('Enter an OpenID', 'error');
-
-            const status = document.getElementById('setupStatus');
-            const statusText = document.getElementById('setupStatusText');
-            status.style.display = 'block';
-            statusText.textContent = 'Creating container...';
-
-            try {
-                const res = await fetch(`${TEST_BASE}/register`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ openid })
-                });
-                if (!res.ok) handleApiError(res);
-                const data = await res.json();
-
-                if (data.status === 'OK' || data.status === 'already_exists') {
-                    showToast(data.message || 'Ready!');
-                    currentUser = openid;
-                    await connectUser();
-                } else {
-                    showToast(data.error || 'Failed', 'error');
-                    statusText.textContent = data.error || 'Failed';
-                }
-            } catch (err) {
-                showToast(err.message, 'error');
-                statusText.textContent = err.message;
-            }
-        }
-
-        function enterChatMode(data) {
-            document.getElementById('setupView').style.display = 'none';
-            document.getElementById('chatView').style.display = 'flex';
-            document.getElementById('userBadge').style.display = 'block';
-            document.getElementById('currentUserLabel').textContent = currentUser;
-
-            const dot = document.getElementById('statusDot');
-            const statusLabel = document.getElementById('statusText');
-            if (data.container_running) {
-                dot.classList.add('active');
-                statusLabel.textContent = 'Running';
-            } else {
-                dot.classList.remove('active');
-                statusLabel.textContent = currentUserObj?.status || 'Offline';
-            }
-
-            // Load message history
-            loadMessageHistory();
-
-            // Load user extensions and knowledge
-            loadUserExtensions();
-            loadStore();
-            loadKnowledge();
-        }
-
-        async function loadMessageHistory() {
-            const chatBox = document.getElementById('chatBox');
-            chatBox.innerHTML = '';
-
-            try {
-                const res = await fetch(`${TEST_BASE}/user/${currentUser}/messages?limit=50`, {
-                    headers: getAuthHeaders()
-                });
-                if (!res.ok) {
-                    chatBox.innerHTML = '<div class="message system">Connected. Send a message to start.</div>';
-                    return;
-                }
-                const data = await res.json();
-                const messages = data.messages || [];
-
-                if (messages.length === 0) {
-                    chatBox.innerHTML = '<div class="message system">Connected. Send a message to start.</div>';
+                if (isRegisterMode) {
+                    // Auto-login after register
+                    isRegisterMode = false;
+                    toggleAuthMode();
+                    errorEl.style.color = 'var(--success-color)';
+                    errorEl.textContent = 'Account created! Please login.';
                     return;
                 }
 
-                for (const msg of messages) {
-                    const sender = msg.direction === 'incoming' ? 'user' : 'ai';
-                    appendMessage(msg.content, sender);
-                }
-            } catch (err) {
-                chatBox.innerHTML = '<div class="message system">Connected. Send a message to start.</div>';
+                token = data.token;
+                currentUser = data.user;
+                localStorage.setItem('weclaw_token', token);
+                localStorage.setItem('weclaw_user', JSON.stringify(currentUser));
+                document.getElementById('authOverlay').classList.add('hidden');
+                document.getElementById('usernameDisplay').textContent = currentUser.username;
+                loadContainers();
+            } catch (e) {
+                errorEl.textContent = 'Network error';
             }
         }
 
-        function showSetup() {
-            document.getElementById('setupView').style.display = 'flex';
-            document.getElementById('chatView').style.display = 'none';
-            document.getElementById('userBadge').style.display = 'none';
+        function logout() {
+            token = null;
             currentUser = null;
-            currentUserObj = null;
-            localStorage.removeItem('weclaw_openid');
+            localStorage.removeItem('weclaw_token');
+            localStorage.removeItem('weclaw_user');
+            document.getElementById('authOverlay').classList.remove('hidden');
+            document.getElementById('authError').textContent = '';
+            document.getElementById('authError').style.color = '';
         }
 
-        // ==================== Store ====================
-        async function loadStore() {
+        function authHeaders() {
+            return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+        }
+
+        // --- Containers ---
+        async function loadContainers() {
+            const grid = document.getElementById('containerGrid');
+            grid.innerHTML = '<div class="loading-text">Loading...</div>';
             try {
-                const [skillsRes, mcpsRes] = await Promise.all([
-                    fetch(`${STORE_BASE}/skills`, { headers: getAuthHeaders() }),
-                    fetch(`${STORE_BASE}/mcps`, { headers: getAuthHeaders() })
-                ]);
-                if (skillsRes.ok) skillCatalog = await skillsRes.json() || [];
-                if (mcpsRes.ok) mcpCatalog = await mcpsRes.json() || [];
-                renderStore();
-            } catch (err) {
-                console.error('loadStore error:', err);
+                const res = await fetch('/api/containers', { headers: authHeaders() });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                containers = data.containers || [];
+                renderContainers();
+            } catch (e) {
+                grid.innerHTML = '<div class="loading-text">Failed to load containers</div>';
             }
         }
 
-        async function loadUserExtensions() {
-            if (!currentUser) return;
-            try {
-                const [skillsRes, mcpsRes] = await Promise.all([
-                    fetch(`${USER_BASE}/skills?openid=${currentUser}`, { headers: getAuthHeaders() }),
-                    fetch(`${USER_BASE}/mcps?openid=${currentUser}`, { headers: getAuthHeaders() })
-                ]);
-                if (skillsRes.ok) userSkills = await skillsRes.json() || [];
-                if (mcpsRes.ok) userMCPs = await mcpsRes.json() || [];
-                renderSidebar();
-                renderStore(); // update install/uninstall states
-            } catch (err) {
-                console.error('loadUserExtensions error:', err);
-            }
-        }
-
-        function renderSidebar() {
-            // Skills
-            const skillsEl = document.getElementById('userSkillsList');
-            if (!userSkills || userSkills.length === 0) {
-                skillsEl.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">No skills installed</div>';
-            } else {
-                skillsEl.innerHTML = userSkills.map(s => {
-                    const cat = skillCatalog.find(c => c.name === s.skill_name);
-                    const icon = cat?.icon || '\u2699';
-                    const name = cat?.display_name || s.skill_name;
-                    return `<div class="extension-item">
-                        <div class="extension-info">
-                            <span class="extension-icon">${icon}</span>
-                            <span class="extension-name">${name}</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleSkill('${s.skill_name}', this.checked)">
-                            <span class="toggle-slider"></span>
-                        </label>
+        function renderContainers() {
+            const grid = document.getElementById('containerGrid');
+            if (!containers || containers.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">&#x1F4E6;</div>
+                        <p>No containers yet. Create one to get started!</p>
+                        <button class="btn-new" onclick="openCreateModal()">+ New Container</button>
                     </div>`;
-                }).join('');
+                return;
             }
-
-            // MCPs
-            const mcpsEl = document.getElementById('userMCPsList');
-            if (!userMCPs || userMCPs.length === 0) {
-                mcpsEl.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">No MCP servers installed</div>';
-            } else {
-                mcpsEl.innerHTML = userMCPs.map(m => {
-                    const cat = mcpCatalog.find(c => c.name === m.mcp_name);
-                    const icon = cat?.icon || '\u{1F50C}';
-                    const name = cat?.display_name || m.mcp_name;
-                    return `<div class="extension-item">
-                        <div class="extension-info">
-                            <span class="extension-icon">${icon}</span>
-                            <span class="extension-name">${name}</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" ${m.enabled ? 'checked' : ''} onchange="toggleMCP('${m.mcp_name}', this.checked)">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>`;
-                }).join('');
-            }
-        }
-
-        function renderStore() {
-            const installedSkillNames = new Set((userSkills || []).map(s => s.skill_name));
-            const installedMCPNames = new Set((userMCPs || []).map(m => m.mcp_name));
-
-            // Skills grid
-            const skillsGrid = document.getElementById('storeSkillsGrid');
-            if (!skillCatalog || skillCatalog.length === 0) {
-                skillsGrid.innerHTML = '<div class="store-empty"><div class="store-empty-icon">\u{1F4E6}</div><div>No skills in store yet.<br>Admin can add via API.</div></div>';
-            } else {
-                skillsGrid.innerHTML = skillCatalog.map(s => {
-                    const installed = installedSkillNames.has(s.name);
-                    return `<div class="store-card">
+            grid.innerHTML = containers.map(c => {
+                const statusClass = c.is_running ? 'active' : (c.status || 'pending');
+                const statusLabel = c.is_running ? 'Running' : (c.status === 'sleeping' ? 'Sleeping' : c.status);
+                const portInfo = c.container_port ? 'Port: ' + c.container_port : 'No port';
+                const idShort = c.container_id ? c.container_id.substring(0, 12) : '---';
+                return `
+                    <div class="container-card">
                         <div class="card-header">
-                            <span class="card-icon">${s.icon || '\u2699'}</span>
-                            <div class="card-meta">
-                                <div class="card-name">${s.display_name || s.name}</div>
-                                <div class="card-category">${s.category || 'Skill'}</div>
-                            </div>
+                            <div class="card-name">${esc(c.display_name || 'Container #' + c.id)}</div>
+                            <span class="card-status ${statusClass}">${statusLabel}</span>
                         </div>
-                        <div class="card-desc">${s.description || 'No description'}</div>
-                        <button class="card-action ${installed ? 'installed' : 'install'}"
-                            onclick="${installed ? `uninstallSkill('${s.name}')` : `installSkill('${s.name}')`}"
-                            onmouseenter="if(this.classList.contains('installed'))this.textContent='Uninstall'"
-                            onmouseleave="if(this.classList.contains('installed'))this.textContent='Installed'">
-                            ${installed ? 'Installed' : 'Install'}
-                        </button>
-                    </div>`;
-                }).join('');
-            }
-
-            // MCPs grid
-            const mcpsGrid = document.getElementById('storeMCPsGrid');
-            if (!mcpCatalog || mcpCatalog.length === 0) {
-                mcpsGrid.innerHTML = '<div class="store-empty"><div class="store-empty-icon">\u{1F50C}</div><div>No MCP servers in store yet.<br>Admin can add via API.</div></div>';
-            } else {
-                mcpsGrid.innerHTML = mcpCatalog.map(m => {
-                    const installed = installedMCPNames.has(m.name);
-                    return `<div class="store-card">
-                        <div class="card-header">
-                            <span class="card-icon">${m.icon || '\u{1F50C}'}</span>
-                            <div class="card-meta">
-                                <div class="card-name">${m.display_name || m.name}</div>
-                                <div class="card-category">${m.category || 'MCP Server'}</div>
-                            </div>
+                        <div class="card-meta">
+                            <div>${portInfo} &middot; ID: ${idShort}</div>
+                            <div>Created: ${new Date(c.created_at).toLocaleString()}</div>
                         </div>
-                        <div class="card-desc">${m.description || m.command + ' ' + (m.args || '')}</div>
-                        <button class="card-action ${installed ? 'installed' : 'install'}"
-                            onclick="${installed ? `uninstallMCP('${m.name}')` : `installMCP('${m.name}')`}"
-                            onmouseenter="if(this.classList.contains('installed'))this.textContent='Uninstall'"
-                            onmouseleave="if(this.classList.contains('installed'))this.textContent='Installed'">
-                            ${installed ? 'Installed' : 'Install'}
-                        </button>
+                        <div class="card-actions">
+                            <button class="btn-connect card-actions-btn" onclick="connectContainer(${c.id})">Connect</button>
+                            <button class="btn-restart card-actions-btn" onclick="restartContainer(${c.id})" title="Restart gateway">Restart</button>
+                            <button class="btn-delete card-actions-btn" onclick="openDeleteModal(${c.id}, '${esc(c.display_name)}')">Delete</button>
+                        </div>
                     </div>`;
-                }).join('');
+            }).join('');
+        }
+
+        function openCreateModal() { document.getElementById('createModal').classList.remove('hidden'); document.getElementById('newContainerName').value = ''; document.getElementById('newContainerName').focus(); }
+        function closeCreateModal() { document.getElementById('createModal').classList.add('hidden'); }
+
+        async function createContainer() {
+            const name = document.getElementById('newContainerName').value.trim();
+            if (!name) return;
+            closeCreateModal();
+            const grid = document.getElementById('containerGrid');
+            // Show temporary loading
+            const loadCard = document.createElement('div');
+            loadCard.className = 'container-card';
+            loadCard.innerHTML = `<div class="card-header"><div class="card-name">${esc(name)}</div><span class="card-status pending">Creating...</span></div><div class="card-meta"><div class="spinner"></div> Setting up Docker container...</div>`;
+            grid.appendChild(loadCard);
+
+            try {
+                const res = await fetch('/api/containers', {
+                    method: 'POST', headers: authHeaders(),
+                    body: JSON.stringify({ display_name: name })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert('Failed: ' + (data.error || 'Unknown error')); }
+                loadContainers();
+            } catch (e) {
+                alert('Network error');
+                loadContainers();
             }
         }
 
-        // ==================== Install / Uninstall ====================
-        async function installSkill(name) {
-            if (!currentUser) return showToast('Connect to a user first', 'error');
+        function openDeleteModal(id, name) {
+            deleteTargetId = id;
+            document.getElementById('deleteContainerName').textContent = name || 'Container #' + id;
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+        function closeDeleteModal() { document.getElementById('deleteModal').classList.add('hidden'); deleteTargetId = null; }
+
+        async function confirmDelete() {
+            if (!deleteTargetId) return;
+            const id = deleteTargetId;
+            closeDeleteModal();
             try {
-                const res = await fetch(`${USER_BASE}/skills`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ openid: currentUser, skill_name: name })
-                });
-                if (!res.ok) handleApiError(res);
-                if (res.ok) {
-                    showToast(`Skill "${name}" installed`);
-                    markPendingChanges();
-                    await loadUserExtensions();
-                }
-            } catch (err) { showToast(err.message, 'error'); }
+                await fetch('/api/containers/' + id, { method: 'DELETE', headers: authHeaders() });
+                loadContainers();
+            } catch (e) { alert('Network error'); }
         }
 
-        async function uninstallSkill(name) {
-            if (!currentUser) return;
+        async function restartContainer(id) {
             try {
-                const res = await fetch(`${USER_BASE}/skills/${name}?openid=${currentUser}`, {
-                    method: 'DELETE', headers: getAuthHeaders()
-                });
-                if (!res.ok) handleApiError(res);
-                if (res.ok) {
-                    showToast(`Skill "${name}" removed`);
-                    markPendingChanges();
-                    await loadUserExtensions();
-                }
-            } catch (err) { showToast(err.message, 'error'); }
-        }
-
-        async function installMCP(name) {
-            if (!currentUser) return showToast('Connect to a user first', 'error');
-            try {
-                const res = await fetch(`${USER_BASE}/mcps`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ openid: currentUser, mcp_name: name })
-                });
-                if (!res.ok) handleApiError(res);
-                if (res.ok) {
-                    showToast(`MCP "${name}" installed`);
-                    markPendingChanges();
-                    await loadUserExtensions();
-                }
-            } catch (err) { showToast(err.message, 'error'); }
-        }
-
-        async function uninstallMCP(name) {
-            if (!currentUser) return;
-            try {
-                const res = await fetch(`${USER_BASE}/mcps/${name}?openid=${currentUser}`, {
-                    method: 'DELETE', headers: getAuthHeaders()
-                });
-                if (!res.ok) handleApiError(res);
-                if (res.ok) {
-                    showToast(`MCP "${name}" removed`);
-                    markPendingChanges();
-                    await loadUserExtensions();
-                }
-            } catch (err) { showToast(err.message, 'error'); }
-        }
-
-        function toggleSkill(name, enabled) {
-            markPendingChanges();
-        }
-
-        function toggleMCP(name, enabled) {
-            markPendingChanges();
-        }
-
-        // ==================== Apply Changes ====================
-        function markPendingChanges() {
-            pendingChanges = true;
-            const btn = document.getElementById('applyBtn');
-            btn.disabled = false;
-            btn.textContent = 'Apply Changes';
-            btn.style.animation = 'none';
-            btn.offsetHeight; // trigger reflow
-            btn.style.animation = null;
-        }
-
-        async function applyChanges() {
-            if (!currentUser) return showToast('No user connected', 'error');
-            const btn = document.getElementById('applyBtn');
-            btn.disabled = true;
-            btn.textContent = 'Applying...';
-
-            try {
-                const res = await fetch(`${USER_BASE}/apply`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ openid: currentUser })
-                });
-                if (!res.ok) handleApiError(res);
+                const res = await fetch('/api/containers/' + id + '/restart', { method: 'POST', headers: authHeaders() });
                 const data = await res.json();
                 if (res.ok) {
-                    showToast('Changes applied! Container restarting...');
-                    pendingChanges = false;
-                    btn.textContent = 'Applied';
-                    // Re-check status after restart
-                    setTimeout(() => connectUser(), 5000);
+                    loadContainers();
                 } else {
-                    showToast(data.error || 'Apply failed', 'error');
-                    btn.disabled = false;
-                    btn.textContent = 'Apply Changes';
+                    alert('Restart failed: ' + (data.error || 'Unknown error'));
                 }
-            } catch (err) {
-                showToast(err.message, 'error');
-                btn.disabled = false;
-                btn.textContent = 'Apply Changes';
+            } catch (e) { alert('Network error'); }
+        }
+
+        // --- Chat ---
+        async function connectContainer(id) {
+            const c = containers.find(x => x.id === id);
+            if (!c) return;
+            activeContainer = c;
+
+            // Switch views
+            document.getElementById('dashboardView').style.display = 'none';
+            document.getElementById('chatView').classList.remove('hidden');
+            document.getElementById('sidebar').classList.remove('collapsed');
+
+            document.getElementById('chatTitle').textContent = c.display_name || 'Container #' + c.id;
+            document.getElementById('chatSubtitle').textContent = `Port: ${c.container_port || '---'} | Status: ${c.is_running ? 'Running' : c.status}`;
+
+            // Reset gateway status and open WebSocket
+            gatewayReady = false;
+            updateGatewayBadge(false);
+            document.getElementById('sendBtn').disabled = true;
+            openWebSocket(c.id);
+
+            // Load messages
+            loadMessages();
+            loadContainerExtensions();
+            loadKnowledgeTree();
+        }
+
+        function backToDashboard() {
+            activeContainer = null;
+            closeWebSocket();
+            document.getElementById('dashboardView').style.display = '';
+            document.getElementById('chatView').classList.add('hidden');
+            document.getElementById('sidebar').classList.add('collapsed');
+            loadContainers();
+        }
+
+        async function loadMessages() {
+            const area = document.getElementById('messagesArea');
+            area.innerHTML = '<div class="loading-text">Loading messages...</div>';
+            if (!activeContainer) return;
+            try {
+                const res = await fetch(`/api/containers/${activeContainer.id}/messages?limit=50`, { headers: authHeaders() });
+                const data = await res.json();
+                const msgs = data.messages || [];
+                if (msgs.length === 0) {
+                    area.innerHTML = '<div class="loading-text">No messages yet. Say hello!</div>';
+                    return;
+                }
+                area.innerHTML = msgs.map(m => {
+                    const isUser = m.direction === 'incoming';
+                    const t = new Date(m.created_at).toLocaleTimeString();
+                    return `<div class="message ${isUser ? 'user' : 'assistant'}">
+                        <div class="message-bubble">${esc(m.content)}</div>
+                        <div class="message-time">${t}</div>
+                    </div>`;
+                }).join('');
+                area.scrollTop = area.scrollHeight;
+            } catch (e) {
+                area.innerHTML = '<div class="loading-text">Failed to load messages</div>';
             }
         }
 
-        // ==================== Chat ====================
-        function appendMessage(text, sender) {
-            const chatBox = document.getElementById('chatBox');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${sender}`;
-            msgDiv.textContent = text;
-            chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
+        function handleInputKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMessage(); }
         }
 
         async function sendMessage() {
             const input = document.getElementById('messageInput');
-            const text = input.value.trim();
-            if (!currentUser) return showToast('Connect to a user first', 'error');
-            if (!text) return;
-
-            appendMessage(text, 'user');
+            const msg = input.value.trim();
+            if (!msg || !activeContainer || !gatewayReady) return;
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
             input.value = '';
-
             const btn = document.getElementById('sendBtn');
             btn.disabled = true;
-            btn.textContent = '...';
+            btn.innerHTML = '<span class="spinner"></span>';
 
-            try {
-                const res = await fetch(`${TEST_BASE}/send`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ openid: currentUser, message: text })
-                });
-                if (!res.ok) handleApiError(res);
-                const data = await res.json();
+            // Append user message
+            const area = document.getElementById('messagesArea');
+            const loadingDiv = area.querySelector('.loading-text');
+            if (loadingDiv) loadingDiv.remove();
+            area.innerHTML += `<div class="message user"><div class="message-bubble">${esc(msg)}</div><div class="message-time">${new Date().toLocaleTimeString()}</div></div>`;
+            area.scrollTop = area.scrollHeight;
 
-                if (res.ok && data.status === 'OK') {
-                    const resp = data.raw_response;
-                    if (!resp || resp.trim() === '' || resp.includes('[无响应内容]')) {
-                        appendMessage('(Empty response)', 'system');
-                    } else {
-                        appendMessage(resp, 'ai');
-                    }
-                } else {
-                    appendMessage(`Error: ${data.error || 'Request failed'}`, 'system');
-                }
-            } catch (err) {
-                appendMessage(`Network Error: ${err.message}`, 'system');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Send';
+            // Show thinking indicator
+            area.innerHTML += `<div class="message assistant" id="thinkingMsg"><div class="message-bubble"><span class="spinner"></span> Thinking...</div></div>`;
+            area.scrollTop = area.scrollHeight;
+
+            // Send via WebSocket
+            ws.send(JSON.stringify({ type: 'send_message', message: msg }));
+        }
+
+        // --- Gateway Status ---
+        function updateGatewayBadge(ready, statusText) {
+            const badge = document.getElementById('gatewayBadge');
+            if (statusText) {
+                badge.className = 'gateway-badge starting';
+                badge.innerHTML = '<span class="dot"></span> ' + statusText;
+            } else if (ready) {
+                badge.className = 'gateway-badge ready';
+                badge.innerHTML = '<span class="dot"></span> Gateway ready';
+            } else {
+                badge.className = 'gateway-badge starting';
+                badge.innerHTML = '<span class="dot"></span> Gateway starting...';
             }
         }
 
-        // ==================== UI Toggles ====================
+        // --- WebSocket ---
+        function openWebSocket(containerId) {
+            closeWebSocket();
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = `${proto}//${location.host}/ws/containers/${containerId}?token=${encodeURIComponent(token)}`;
+            ws = new WebSocket(url);
+
+            ws.onopen = function() {
+                wsReconnectDelay = 1000; // Reset backoff
+            };
+
+            ws.onmessage = function(e) {
+                try {
+                    const msg = JSON.parse(e.data);
+                    handleWSMessage(msg);
+                } catch (err) {}
+            };
+
+            ws.onclose = function() {
+                ws = null;
+                if (activeContainer && activeContainer.id === containerId) {
+                    scheduleReconnect(containerId);
+                }
+            };
+
+            ws.onerror = function() {};
+        }
+
+        function closeWebSocket() {
+            if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+            if (ws) {
+                ws.onclose = null; // Prevent reconnect
+                ws.close();
+                ws = null;
+            }
+            wsReconnectDelay = 1000;
+        }
+
+        function scheduleReconnect(containerId) {
+            updateGatewayBadge(false, 'Reconnecting...');
+            wsReconnectTimer = setTimeout(() => {
+                wsReconnectTimer = null;
+                if (activeContainer && activeContainer.id === containerId) {
+                    openWebSocket(containerId);
+                }
+            }, wsReconnectDelay);
+            wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
+        }
+
+        function handleWSMessage(msg) {
+            const area = document.getElementById('messagesArea');
+            const btn = document.getElementById('sendBtn');
+
+            switch (msg.type) {
+            case 'connected':
+                break;
+
+            case 'gateway_status':
+                gatewayReady = !!msg.ready;
+                updateGatewayBadge(gatewayReady);
+                if (gatewayReady && !streamingRequestId) {
+                    btn.disabled = false;
+                }
+                break;
+
+            case 'stream_start':
+                streamingRequestId = msg.request_id;
+                streamingText = '';
+                // Remove thinking indicator
+                const thinkEl = document.getElementById('thinkingMsg');
+                if (thinkEl) thinkEl.remove();
+                // Create streaming bubble
+                area.innerHTML += `<div class="message assistant" id="stream-${msg.request_id}"><div class="message-bubble"></div></div>`;
+                area.scrollTop = area.scrollHeight;
+                break;
+
+            case 'stream_delta':
+                streamingText += msg.text;
+                const deltaEl = document.getElementById('stream-' + msg.request_id);
+                if (deltaEl) {
+                    deltaEl.querySelector('.message-bubble').textContent = streamingText;
+                    area.scrollTop = area.scrollHeight;
+                }
+                break;
+
+            case 'stream_done':
+                const doneEl = document.getElementById('stream-' + msg.request_id);
+                if (doneEl) {
+                    doneEl.querySelector('.message-bubble').textContent = msg.text;
+                    doneEl.innerHTML += `<div class="message-time">${new Date().toLocaleTimeString()}</div>`;
+                    area.scrollTop = area.scrollHeight;
+                }
+                streamingRequestId = null;
+                streamingText = '';
+                btn.disabled = false;
+                btn.innerHTML = 'Send';
+                break;
+
+            case 'stream_error':
+                const errThink = document.getElementById('thinkingMsg');
+                if (errThink) errThink.remove();
+                const errStreamEl = document.getElementById('stream-' + msg.request_id);
+                if (errStreamEl) errStreamEl.remove();
+                area.innerHTML += `<div class="message assistant"><div class="message-bubble" style="color:var(--danger-color)">${esc(msg.error || 'Error')}</div></div>`;
+                area.scrollTop = area.scrollHeight;
+                streamingRequestId = null;
+                streamingText = '';
+                btn.disabled = false;
+                btn.innerHTML = 'Send';
+                break;
+
+            case 'error':
+                if (msg.error === 'message_in_flight') break;
+                const errThink2 = document.getElementById('thinkingMsg');
+                if (errThink2) errThink2.remove();
+                area.innerHTML += `<div class="message assistant"><div class="message-bubble" style="color:var(--danger-color)">${esc(msg.error || 'Error')}</div></div>`;
+                area.scrollTop = area.scrollHeight;
+                btn.disabled = false;
+                btn.innerHTML = 'Send';
+                break;
+
+            case 'ping':
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'pong' }));
+                }
+                break;
+            }
+        }
+
+        // --- Sidebar / Extensions ---
         function toggleSidebar() {
-            sidebarVisible = !sidebarVisible;
-            document.getElementById('sidebar').classList.toggle('collapsed', !sidebarVisible);
+            document.getElementById('sidebar').classList.toggle('collapsed');
         }
 
-        function toggleStore() {
-            storeVisible = !storeVisible;
-            document.getElementById('storePanel').classList.toggle('visible', storeVisible);
-            document.getElementById('storeBtnSidebar').classList.toggle('active', storeVisible);
-        }
-
-        function showStoreTab(tab) {
-            document.getElementById('tabSkills').classList.toggle('active', tab === 'skills');
-            document.getElementById('tabMCPs').classList.toggle('active', tab === 'mcps');
-            document.getElementById('storeSkillsGrid').style.display = tab === 'skills' ? 'grid' : 'none';
-            document.getElementById('storeMCPsGrid').style.display = tab === 'mcps' ? 'grid' : 'none';
-        }
-
-        // ==================== Knowledge Base ====================
-        let knowledgeFiles = [];
-
-        async function loadKnowledge() {
-            const el = document.getElementById('knowledgeTree');
+        async function loadContainerExtensions() {
+            if (!activeContainer) return;
+            // Load skills
             try {
-                const res = await fetch(`${STORE_BASE}/knowledge`, { headers: getAuthHeaders() });
-                if (!res.ok) { el.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">Failed to load</div>'; return; }
-                knowledgeFiles = await res.json() || [];
-                if (knowledgeFiles.length === 0) {
-                    el.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">Empty — add files to shared-knowledge/</div>';
+                const res = await fetch(`/api/containers/${activeContainer.id}/skills`, { headers: authHeaders() });
+                const skills = await res.json();
+                const list = document.getElementById('skillList');
+                if (!skills || skills.length === 0) {
+                    list.innerHTML = '<div class="loading-text" style="padding:0.5rem;font-size:0.78rem">No skills installed</div>';
+                } else {
+                    list.innerHTML = skills.map(s => `
+                        <div class="extension-item">
+                            <span class="extension-icon">&#x2699;</span>
+                            <span class="extension-name">${esc(s.skill_name)}</span>
+                            <button class="extension-remove" onclick="removeSkill('${esc(s.skill_name)}')" title="Remove">&times;</button>
+                        </div>`).join('');
+                }
+            } catch (e) {}
+
+            // Load MCPs
+            try {
+                const res = await fetch(`/api/containers/${activeContainer.id}/mcps`, { headers: authHeaders() });
+                const mcps = await res.json();
+                const list = document.getElementById('mcpList');
+                if (!mcps || mcps.length === 0) {
+                    list.innerHTML = '<div class="loading-text" style="padding:0.5rem;font-size:0.78rem">No MCP servers installed</div>';
+                } else {
+                    list.innerHTML = mcps.map(m => `
+                        <div class="extension-item">
+                            <span class="extension-icon">&#x1F50C;</span>
+                            <span class="extension-name">${esc(m.mcp_name)}</span>
+                            <button class="extension-remove" onclick="removeMCP('${esc(m.mcp_name)}')" title="Remove">&times;</button>
+                        </div>`).join('');
+                }
+            } catch (e) {}
+        }
+
+        async function removeSkill(name) {
+            if (!activeContainer) return;
+            await fetch(`/api/containers/${activeContainer.id}/skills/${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders() });
+            loadContainerExtensions();
+        }
+
+        async function removeMCP(name) {
+            if (!activeContainer) return;
+            await fetch(`/api/containers/${activeContainer.id}/mcps/${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders() });
+            loadContainerExtensions();
+        }
+
+        async function applyChanges() {
+            if (!activeContainer) return;
+            const btn = document.querySelector('.btn-apply');
+            btn.textContent = 'Applying...';
+            btn.disabled = true;
+            try {
+                const res = await fetch(`/api/containers/${activeContainer.id}/apply`, { method: 'POST', headers: authHeaders() });
+                const data = await res.json();
+                if (res.ok) {
+                    btn.textContent = 'Applied!';
+                    setTimeout(() => { btn.textContent = 'Apply Changes'; btn.disabled = false; }, 2000);
+                } else {
+                    alert('Apply failed: ' + (data.error || 'Unknown error'));
+                    btn.textContent = 'Apply Changes'; btn.disabled = false;
+                }
+            } catch (e) {
+                alert('Network error');
+                btn.textContent = 'Apply Changes'; btn.disabled = false;
+            }
+        }
+
+        // --- Store ---
+        async function openStore() {
+            document.getElementById('storeModal').classList.remove('hidden');
+            switchStoreTab('skills');
+        }
+        function closeStore() { document.getElementById('storeModal').classList.add('hidden'); }
+
+        async function switchStoreTab(tab) {
+            storeTab = tab;
+            document.querySelectorAll('.store-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            const items = document.getElementById('storeItems');
+            items.innerHTML = '<div class="loading-text">Loading...</div>';
+
+            try {
+                const catalogRes = await fetch(`/api/store/${tab}`, { headers: authHeaders() });
+                const catalog = await catalogRes.json();
+
+                let installed = [];
+                if (activeContainer) {
+                    const instRes = await fetch(`/api/containers/${activeContainer.id}/${tab}`, { headers: authHeaders() });
+                    installed = await instRes.json();
+                }
+                const installedNames = new Set((installed || []).map(i => tab === 'skills' ? i.skill_name : i.mcp_name));
+
+                if (!catalog || catalog.length === 0) {
+                    items.innerHTML = '<div class="loading-text">No items in store</div>';
                     return;
                 }
-                el.innerHTML = '<div class="file-tree">' + renderFileTree(knowledgeFiles) + '</div>';
-            } catch (err) {
-                el.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">Error loading files</div>';
+
+                items.innerHTML = catalog.map(c => {
+                    const isInstalled = installedNames.has(c.name);
+                    return `<div class="store-item">
+                        <span class="store-item-icon">${c.icon || (tab === 'skills' ? '&#x2699;' : '&#x1F50C;')}</span>
+                        <div class="store-item-info">
+                            <div class="store-item-name">${esc(c.display_name || c.name)}</div>
+                            <div class="store-item-desc">${esc(c.description || '')}</div>
+                        </div>
+                        <button class="store-item-action ${isInstalled ? 'installed' : ''}"
+                            onclick="${isInstalled ? '' : `installItem('${tab}','${esc(c.name)}')`}"
+                            ${isInstalled ? 'disabled' : ''}>
+                            ${isInstalled ? 'Installed' : 'Install'}
+                        </button>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                items.innerHTML = '<div class="loading-text">Failed to load</div>';
             }
         }
 
-        function renderFileTree(entries) {
+        async function installItem(tab, name) {
+            if (!activeContainer) { alert('Connect to a container first'); return; }
+            const body = tab === 'skills' ? { skill_name: name } : { mcp_name: name };
+            try {
+                await fetch(`/api/containers/${activeContainer.id}/${tab}`, {
+                    method: 'POST', headers: authHeaders(), body: JSON.stringify(body)
+                });
+                switchStoreTab(tab);
+                loadContainerExtensions();
+            } catch (e) { alert('Failed to install'); }
+        }
+
+        // --- Shared Knowledge ---
+        async function loadKnowledgeTree() {
+            const container = document.getElementById('knowledgeTree');
+            try {
+                const res = await fetch('/api/store/knowledge', { headers: authHeaders() });
+                if (!res.ok) { container.innerHTML = '<div class="kb-empty">Failed to load</div>'; return; }
+                const entries = await res.json();
+                if (!entries || entries.length === 0) {
+                    container.innerHTML = '<div class="kb-empty">No files yet</div>';
+                    return;
+                }
+                container.innerHTML = renderKBEntries(entries);
+            } catch (e) {
+                container.innerHTML = '<div class="kb-empty">Failed to load</div>';
+            }
+        }
+
+        function renderKBEntries(entries) {
             return entries.map(e => {
                 if (e.is_dir) {
-                    const children = e.items && e.items.length > 0 ? renderFileTree(e.items) : '';
+                    const children = e.items && e.items.length > 0 ? renderKBEntries(e.items) : '<div class="kb-empty">Empty</div>';
                     return `<div>
-                        <div class="file-tree-item" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-                            <span class="icon">\u{1F4C1}</span><span class="name">${e.name}</span>
+                        <div class="kb-dir" onclick="toggleKBDir(this)">
+                            <span class="kb-dir-icon">&#9654;</span>
+                            <span class="kb-name">${esc(e.name)}</span>
                         </div>
-                        <div class="file-tree-children">${children}</div>
-                    </div>`;
-                } else {
-                    const sizeKB = e.size > 1024 ? (e.size / 1024).toFixed(1) + 'K' : e.size + 'B';
-                    return `<div class="file-tree-item" onclick="viewFile('${e.path.replace(/'/g, "\\'")}')">
-                        <span class="icon">\u{1F4C4}</span><span class="name">${e.name}</span>
-                        <span style="margin-left:auto;color:var(--text-dim);font-size:0.7rem;flex-shrink:0;">${sizeKB}</span>
+                        <div class="kb-children collapsed">${children}</div>
                     </div>`;
                 }
+                const sizeStr = e.size > 1024 ? (e.size / 1024).toFixed(1) + 'K' : e.size + 'B';
+                return `<div class="kb-file" onclick="openKBFile('${esc(e.path)}', '${esc(e.name)}')" title="${esc(e.path)}">
+                    <span class="kb-file-icon">&#x1F4C4;</span>
+                    <span class="kb-name">${esc(e.name)}</span>
+                    <span class="kb-size">${sizeStr}</span>
+                </div>`;
             }).join('');
         }
 
-        async function viewFile(path) {
-            document.getElementById('fileViewerModal').classList.add('visible');
-            document.getElementById('fileViewerTitle').textContent = path;
-            document.getElementById('fileViewerContent').textContent = 'Loading...';
+        function toggleKBDir(el) {
+            const children = el.nextElementSibling;
+            const icon = el.querySelector('.kb-dir-icon');
+            children.classList.toggle('collapsed');
+            icon.classList.toggle('open');
+        }
+
+        async function openKBFile(path, name) {
+            const overlay = document.getElementById('fileViewerOverlay');
+            const title = document.getElementById('fileViewerTitle');
+            const body = document.getElementById('fileViewerBody');
+            title.textContent = name;
+            body.textContent = 'Loading...';
+            overlay.classList.remove('hidden');
 
             try {
-                const res = await fetch(`${STORE_BASE}/knowledge/read?path=${encodeURIComponent(path)}`, {
-                    headers: getAuthHeaders()
-                });
+                const res = await fetch(`/api/store/knowledge/read?path=${encodeURIComponent(path)}`, { headers: authHeaders() });
                 const data = await res.json();
-                if (res.ok) {
-                    document.getElementById('fileViewerContent').textContent = data.content;
-                } else {
-                    document.getElementById('fileViewerContent').textContent = 'Error: ' + (data.error || 'Failed to read file');
+                if (!res.ok) {
+                    body.textContent = data.error || 'Failed to read file';
+                    return;
                 }
-            } catch (err) {
-                document.getElementById('fileViewerContent').textContent = 'Error: ' + err.message;
+                body.textContent = data.content;
+            } catch (e) {
+                body.textContent = 'Network error';
             }
         }
 
         function closeFileViewer() {
-            document.getElementById('fileViewerModal').classList.remove('visible');
+            document.getElementById('fileViewerOverlay').classList.add('hidden');
         }
 
-        // Load knowledge tree on page init (after auth)
-        if (authToken) { loadKnowledge(); }
-
-        // ==================== Toast ====================
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.className = 'toast show ' + type;
-            setTimeout(() => { toast.className = 'toast'; }, 3000);
+        // --- Helpers ---
+        function esc(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
         }
     </script>
 </body>
-
 </html>
