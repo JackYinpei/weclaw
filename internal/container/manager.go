@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -439,6 +440,13 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 		_ = os.WriteFile(userMDPath, []byte(userMD), 0644)
 	}
 
+	// Fix ownership for bind-mount: OpenClaw containers run as node (UID 1000).
+	// When the host user has a different UID (e.g. 1002), the node user inside
+	// the container cannot write to the mounted directory, causing EACCES errors.
+	if err := chownRecursive(absDir, 1000, 1000); err != nil {
+		logger.Warn("Failed to chown host dir to container user (may need sudo)", "path", absDir, "error", err)
+	}
+
 	logger.Debug("Prepared OpenClaw host dir", "path", absDir, "model", modelSpec)
 	return absDir, nil
 }
@@ -493,8 +501,22 @@ func (m *Manager) EnsureKnowledgeDir() error {
 	if err := os.MkdirAll(m.kbCfg.HostDir, 0755); err != nil {
 		return fmt.Errorf("failed to create knowledge dir %s: %w", m.kbCfg.HostDir, err)
 	}
+	if err := chownRecursive(m.kbCfg.HostDir, 1000, 1000); err != nil {
+		logger.Warn("Failed to chown knowledge dir to container user", "path", m.kbCfg.HostDir, "error", err)
+	}
 	logger.Info("Shared knowledge directory ready", "path", m.kbCfg.HostDir)
 	return nil
+}
+
+// chownRecursive changes ownership of a directory tree to the given uid:gid.
+// Used to ensure bind-mounted directories are writable by the container's node user (UID 1000).
+func chownRecursive(root string, uid, gid int) error {
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Chown(path, uid, gid)
+	})
 }
 
 // RegenerateConfig regenerates openclaw.json for an existing container, then restarts it.

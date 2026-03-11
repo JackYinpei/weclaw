@@ -126,12 +126,15 @@ weclaw/
 ## 开发命令
 
 ```bash
-# 运行代码
-go run cmd/weclaw/main.go
+# 运行代码（非 root 用户需 sudo，详见下方权限说明）
+sudo go run cmd/weclaw/main.go
 
 # 构建可执行文件
 go build -o bin/weclaw cmd/weclaw/main.go
+sudo ./bin/weclaw
 ```
+
+> **权限要求：** OpenClaw 容器以 `node` 用户（UID 1000）运行，WeClaw 创建 Bind Mount 目录后需要 `chown` 为 1000:1000。如果当前用户不是 root 且 UID 不是 1000，必须使用 `sudo` 运行，否则容器内会报 `EACCES: permission denied`。
 
 ## 注意事项
 
