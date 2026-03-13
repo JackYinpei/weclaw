@@ -84,6 +84,8 @@ func (api *ContainerAPI) RegisterRoutes(r *gin.Engine) {
 		store.DELETE("/mcps/:name", api.DeleteMCPCatalog)
 		store.GET("/knowledge", api.ListKnowledgeFiles)
 		store.GET("/knowledge/read", api.ReadKnowledgeFile)
+		store.POST("/knowledge/upload", api.UploadKnowledgeFile)
+		store.GET("/knowledge/download", api.DownloadKnowledgeFile)
 	}
 }
 
@@ -677,4 +679,117 @@ func (api *ContainerAPI) ReadKnowledgeFile(c *gin.Context) {
 		"size":    info.Size(),
 		"content": string(data),
 	})
+}
+
+// UploadKnowledgeFile handles file uploads to the shared knowledge base.
+func (api *ContainerAPI) UploadKnowledgeFile(c *gin.Context) {
+	hostDir := api.cfg.KnowledgeBase.HostDir
+	if hostDir == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "knowledge base not configured"})
+		return
+	}
+
+	// Get uploaded file
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+	defer file.Close()
+
+	// Optional subdirectory path
+	subPath := c.PostForm("path")
+
+	// Validate filename
+	filename := header.Filename
+	if filename == "" || strings.Contains(filename, "..") || strings.HasPrefix(filename, "/") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		return
+	}
+
+	// Build target path
+	targetDir := hostDir
+	if subPath != "" {
+		cleanSubPath := filepath.Clean(subPath)
+		if strings.Contains(cleanSubPath, "..") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		targetDir = filepath.Join(hostDir, cleanSubPath)
+	}
+
+	// Ensure target directory exists
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create directory"})
+		return
+	}
+
+	// Create target file
+	targetPath := filepath.Join(targetDir, filename)
+	dst, err := os.Create(targetPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create file"})
+		return
+	}
+	defer dst.Close()
+
+	// Copy file content
+	written, err := dst.ReadFrom(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write file"})
+		return
+	}
+
+	logger.Info("Uploaded file to knowledge base", "path", targetPath, "size", written)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "uploaded",
+		"name":    filename,
+		"path":    filepath.Join(subPath, filename),
+		"size":    written,
+	})
+}
+
+// DownloadKnowledgeFile serves a file from the shared knowledge base for download.
+func (api *ContainerAPI) DownloadKnowledgeFile(c *gin.Context) {
+	hostDir := api.cfg.KnowledgeBase.HostDir
+	reqPath := c.Query("path")
+	if hostDir == "" || reqPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+		return
+	}
+
+	cleanPath := filepath.Clean(reqPath)
+	if strings.Contains(cleanPath, "..") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+
+	fullPath := filepath.Join(hostDir, cleanPath)
+
+	absKB, _ := filepath.Abs(hostDir)
+	absFile, _ := filepath.Abs(fullPath)
+	if !strings.HasPrefix(absFile, absKB) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path outside knowledge base"})
+		return
+	}
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+	if info.IsDir() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is a directory"})
+		return
+	}
+
+	// Set Content-Disposition header for download
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Content-Disposition", "attachment; filename="+filepath.Base(cleanPath))
+	c.Header("Content-Type", "application/octet-stream")
+	c.Header("Content-Length", fmt.Sprintf("%d", info.Size()))
+
+	c.File(fullPath)
 }

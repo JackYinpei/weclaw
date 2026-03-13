@@ -381,6 +381,26 @@
         .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-text { color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 2rem; }
+
+        /* Knowledge Base */
+        .kb-actions { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+        .kb-upload-btn {
+            flex: 1; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.75rem;
+            background: var(--primary-dim); color: var(--primary-color);
+            border: 1px solid rgba(59,130,246,0.3); cursor: pointer; transition: all 0.2s;
+        }
+        .kb-upload-btn:hover { background: rgba(59,130,246,0.25); }
+        .kb-download {
+            color: var(--text-muted); text-decoration: none; font-size: 0.9rem;
+            padding: 0.2rem; border-radius: 4px; transition: all 0.2s;
+        }
+        .kb-download:hover { color: var(--primary-color); background: var(--primary-dim); }
+        .file-viewer-video {
+            width: 100%; max-height: 70vh; background: #000; border-radius: 8px;
+        }
+        .file-viewer-image {
+            max-width: 100%; max-height: 70vh; border-radius: 8px;
+        }
     </style>
 </head>
 
@@ -441,6 +461,10 @@
                 </div>
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">Shared Knowledge</div>
+                    <div class="kb-actions">
+                        <input type="file" id="kbFileInput" style="display:none" onchange="handleKBUpload(event)">
+                        <button class="kb-upload-btn" onclick="document.getElementById('kbFileInput').click()">Upload File</button>
+                    </div>
                     <div id="knowledgeTree" class="kb-tree"><div class="kb-empty">Loading...</div></div>
                 </div>
             </div>
@@ -1141,6 +1165,7 @@
                     <span class="kb-file-icon">&#x1F4C4;</span>
                     <span class="kb-name">${esc(e.name)}</span>
                     <span class="kb-size">${sizeStr}</span>
+                    <a href="/api/store/knowledge/download?path=${encodeURIComponent(e.path)}" download="${esc(e.name)}" class="kb-download" onclick="event.stopPropagation()" title="Download">&#x2913;</a>
                 </div>`;
             }).join('');
         }
@@ -1160,6 +1185,26 @@
             body.textContent = 'Loading...';
             overlay.classList.remove('hidden');
 
+            // Detect file type for media playback
+            const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'];
+            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+            const ext = name.split('.').pop().toLowerCase();
+
+            if (videoExts.includes(ext)) {
+                // Use video player
+                const videoUrl = `/api/store/knowledge/download?path=${encodeURIComponent(path)}`;
+                body.innerHTML = `<video controls class="file-viewer-video" src="${videoUrl}">Your browser does not support video playback.</video>`;
+                return;
+            }
+
+            if (imageExts.includes(ext)) {
+                // Use image viewer
+                const imageUrl = `/api/store/knowledge/download?path=${encodeURIComponent(path)}`;
+                body.innerHTML = `<img src="${imageUrl}" alt="${esc(name)}" class="file-viewer-image">`;
+                return;
+            }
+
+            // Default: text viewer
             try {
                 const res = await fetch(`/api/store/knowledge/read?path=${encodeURIComponent(path)}`, { headers: authHeaders() });
                 const data = await res.json();
@@ -1171,6 +1216,34 @@
             } catch (e) {
                 body.textContent = 'Network error';
             }
+        }
+
+        async function handleKBUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/store/knowledge/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token },
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Upload failed: ' + (data.error || 'Unknown error'));
+                    return;
+                }
+                // Refresh the knowledge tree
+                loadKnowledgeTree();
+            } catch (e) {
+                alert('Network error during upload');
+            }
+
+            // Reset file input
+            event.target.value = '';
         }
 
         function closeFileViewer() {

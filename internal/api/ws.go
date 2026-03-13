@@ -70,14 +70,15 @@ func (h *connHub) remove(containerID uint, c *wsConn) {
 // --- WebSocket Connection ---
 
 type wsConn struct {
-	conn      *websocket.Conn
-	send      chan []byte
-	api       *ContainerAPI
-	container *container.Container
-	ctx       context.Context
-	cancel    context.CancelFunc
-	inFlight  bool
-	mu        sync.Mutex // guards inFlight
+	conn           *websocket.Conn
+	send           chan []byte
+	api            *ContainerAPI
+	container      *container.Container
+	ctx            context.Context
+	cancel         context.CancelFunc
+	inFlight       bool
+	lastResponseID string // For conversation context continuity
+	mu             sync.Mutex // guards inFlight and lastResponseID
 }
 
 func (wc *wsConn) sendJSON(msg wsOutgoing) {
@@ -300,6 +301,7 @@ func (wc *wsConn) handleSendMessage(message string) {
 		return
 	}
 	wc.inFlight = true
+	prevRespID := wc.lastResponseID
 	wc.mu.Unlock()
 
 	go func() {
@@ -328,8 +330,8 @@ func (wc *wsConn) handleSendMessage(message string) {
 		reqID := fmt.Sprintf("req-%d", time.Now().UnixMilli())
 		wc.sendJSON(wsOutgoing{Type: "stream_start", RequestID: reqID})
 
-		// Stream SSE from gateway
-		ch, err := wc.api.openclawClient.StreamMessage(wc.ctx, ctr.ContainerPort, ctr.GatewayToken, message)
+		// Stream SSE from gateway (with previous response ID for context)
+		ch, err := wc.api.openclawClient.StreamMessage(wc.ctx, ctr.ContainerPort, ctr.GatewayToken, message, prevRespID)
 		if err != nil {
 			wc.sendJSON(wsOutgoing{Type: "stream_error", RequestID: reqID, Error: err.Error()})
 			return
@@ -347,6 +349,12 @@ func (wc *wsConn) handleSendMessage(message string) {
 				gotDone = true
 				wc.sendJSON(wsOutgoing{Type: "stream_done", RequestID: reqID, Text: evt.Text})
 			case "completed":
+				// Save response ID for next message's context
+				if evt.ResponseID != "" {
+					wc.mu.Lock()
+					wc.lastResponseID = evt.ResponseID
+					wc.mu.Unlock()
+				}
 				// If we got deltas but no text_done, send stream_done with accumulated text
 				if !gotDone && fullText != "" {
 					wc.sendJSON(wsOutgoing{Type: "stream_done", RequestID: reqID, Text: fullText})

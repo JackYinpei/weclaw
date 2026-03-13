@@ -14,26 +14,30 @@ import (
 
 // StreamEvent represents a parsed SSE event from the OpenClaw Gateway /v1/responses endpoint.
 type StreamEvent struct {
-	Type string // "text_delta" | "text_done" | "completed" | "error"
-	Text string // delta content / full text / error message
+	Type       string // "text_delta" | "text_done" | "completed" | "error"
+	Text       string // delta content / full text / error message
+	ResponseID string // response_id from completed event (for context continuity)
 }
 
 type responsesRequest struct {
-	Model  string `json:"model"`
-	Input  string `json:"input"`
-	Stream bool   `json:"stream"`
+	Model              string `json:"model"`
+	Input              string `json:"input"`
+	Stream             bool   `json:"stream"`
+	PreviousResponseID string `json:"previous_response_id,omitempty"`
 }
 
 // StreamMessage sends a message to the OpenClaw Gateway /v1/responses endpoint with streaming
 // and returns a channel of StreamEvents. The channel is closed when the stream ends.
 // If the gateway returns 404 (endpoint not enabled), it falls back to synchronous SendMessage.
-func (c *Client) StreamMessage(ctx context.Context, port int, token, message string) (<-chan StreamEvent, error) {
+// previousResponseID is optional and used to maintain conversation context across messages.
+func (c *Client) StreamMessage(ctx context.Context, port int, token, message, previousResponseID string) (<-chan StreamEvent, error) {
 	url := fmt.Sprintf("http://127.0.0.1:%d/v1/responses", port)
 
 	reqBody := responsesRequest{
-		Model:  "openclaw:main",
-		Input:  message,
-		Stream: true,
+		Model:              "openclaw:main",
+		Input:              message,
+		Stream:             true,
+		PreviousResponseID: previousResponseID,
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -170,6 +174,12 @@ func (c *Client) mapSSEEvent(eventType, data string) (StreamEvent, bool) {
 		}
 
 	case "response.completed":
+		var payload struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal([]byte(data), &payload); err == nil && payload.ID != "" {
+			return StreamEvent{Type: "completed", ResponseID: payload.ID}, true
+		}
 		return StreamEvent{Type: "completed"}, true
 
 	case "response.failed":
