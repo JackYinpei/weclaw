@@ -70,6 +70,11 @@ func (api *ContainerAPI) RegisterRoutes(r *gin.Engine) {
 		containers.DELETE("/:id/mcps/:name", api.RemoveContainerMCP)
 		containers.POST("/:id/apply", api.ApplyChanges)
 		containers.POST("/:id/restart", api.RestartContainer)
+		containers.GET("/:id/workspace", api.ListWorkspaceFiles)
+		containers.GET("/:id/workspace/read", api.ReadWorkspaceFile)
+		containers.POST("/:id/workspace/upload", api.UploadWorkspaceFile)
+		containers.GET("/:id/workspace/download", api.DownloadWorkspaceFile)
+		containers.DELETE("/:id/workspace/delete", api.DeleteWorkspaceFile)
 	}
 
 	// Store catalog (admin)
@@ -792,4 +797,225 @@ func (api *ContainerAPI) DownloadKnowledgeFile(c *gin.Context) {
 	c.Header("Content-Length", fmt.Sprintf("%d", info.Size()))
 
 	c.File(fullPath)
+}
+
+// --- Per-Container Workspace Endpoints ---
+
+// resolveWorkspaceDir returns the host path for a container's workspace directory.
+func (api *ContainerAPI) resolveWorkspaceDir(ctr *container.Container) string {
+	baseDir := api.cfg.Docker.OpenClawHostDataDir
+	if baseDir == "" {
+		baseDir = "./data/weclaw-openclaw"
+	}
+	return filepath.Join(baseDir, ctr.ContainerName, "workspace")
+}
+
+func (api *ContainerAPI) ListWorkspaceFiles(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+	hostDir := api.resolveWorkspaceDir(ctr)
+	entries, err := scanDir(hostDir, "")
+	if err != nil {
+		c.JSON(http.StatusOK, []knowledgeEntry{})
+		return
+	}
+	c.JSON(http.StatusOK, entries)
+}
+
+func (api *ContainerAPI) ReadWorkspaceFile(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+	hostDir := api.resolveWorkspaceDir(ctr)
+	reqPath := c.Query("path")
+	if reqPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+		return
+	}
+
+	cleanPath := filepath.Clean(reqPath)
+	if strings.Contains(cleanPath, "..") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+
+	fullPath := filepath.Join(hostDir, cleanPath)
+	absBase, _ := filepath.Abs(hostDir)
+	absFile, _ := filepath.Abs(fullPath)
+	if !strings.HasPrefix(absFile, absBase) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path outside workspace"})
+		return
+	}
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+	if info.IsDir() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is a directory"})
+		return
+	}
+	if info.Size() > 1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large (max 1MB)"})
+		return
+	}
+
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"path":    cleanPath,
+		"name":    filepath.Base(cleanPath),
+		"size":    info.Size(),
+		"content": string(data),
+	})
+}
+
+func (api *ContainerAPI) UploadWorkspaceFile(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+	hostDir := api.resolveWorkspaceDir(ctr)
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+	defer file.Close()
+
+	subPath := c.PostForm("path")
+	filename := header.Filename
+	if filename == "" || strings.Contains(filename, "..") || strings.HasPrefix(filename, "/") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		return
+	}
+
+	targetDir := hostDir
+	if subPath != "" {
+		cleanSubPath := filepath.Clean(subPath)
+		if strings.Contains(cleanSubPath, "..") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+			return
+		}
+		targetDir = filepath.Join(hostDir, cleanSubPath)
+	}
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create directory"})
+		return
+	}
+
+	targetPath := filepath.Join(targetDir, filename)
+	dst, err := os.Create(targetPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create file"})
+		return
+	}
+	defer dst.Close()
+
+	written, err := dst.ReadFrom(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write file"})
+		return
+	}
+
+	// Chown to container user (UID 1000)
+	_ = os.Chown(targetPath, 1000, 1000)
+
+	logger.Info("Uploaded file to workspace", "container", ctr.ContainerName, "path", targetPath, "size", written)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "uploaded",
+		"name":   filename,
+		"path":   filepath.Join(subPath, filename),
+		"size":   written,
+	})
+}
+
+func (api *ContainerAPI) DownloadWorkspaceFile(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+	hostDir := api.resolveWorkspaceDir(ctr)
+	reqPath := c.Query("path")
+	if reqPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+		return
+	}
+
+	cleanPath := filepath.Clean(reqPath)
+	if strings.Contains(cleanPath, "..") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+
+	fullPath := filepath.Join(hostDir, cleanPath)
+	absBase, _ := filepath.Abs(hostDir)
+	absFile, _ := filepath.Abs(fullPath)
+	if !strings.HasPrefix(absFile, absBase) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path outside workspace"})
+		return
+	}
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+	if info.IsDir() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is a directory"})
+		return
+	}
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Content-Disposition", "attachment; filename="+filepath.Base(cleanPath))
+	c.Header("Content-Type", "application/octet-stream")
+	c.Header("Content-Length", fmt.Sprintf("%d", info.Size()))
+	c.File(fullPath)
+}
+
+func (api *ContainerAPI) DeleteWorkspaceFile(c *gin.Context) {
+	ctr, ok := api.resolveContainer(c)
+	if !ok {
+		return
+	}
+	hostDir := api.resolveWorkspaceDir(ctr)
+	reqPath := c.Query("path")
+	if reqPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+		return
+	}
+
+	cleanPath := filepath.Clean(reqPath)
+	if strings.Contains(cleanPath, "..") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+
+	fullPath := filepath.Join(hostDir, cleanPath)
+	absBase, _ := filepath.Abs(hostDir)
+	absFile, _ := filepath.Abs(fullPath)
+	if !strings.HasPrefix(absFile, absBase) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path outside workspace"})
+		return
+	}
+
+	if err := os.Remove(fullPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete file"})
+		return
+	}
+
+	logger.Info("Deleted workspace file", "container", ctr.ContainerName, "path", cleanPath)
+	c.JSON(http.StatusOK, gin.H{"status": "deleted", "path": cleanPath})
 }

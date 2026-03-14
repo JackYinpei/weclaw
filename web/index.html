@@ -467,6 +467,14 @@
                     </div>
                     <div id="knowledgeTree" class="kb-tree"><div class="kb-empty">Loading...</div></div>
                 </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Personal Workspace</div>
+                    <div class="kb-actions">
+                        <input type="file" id="wsFileInput" style="display:none" onchange="handleWSUpload(event)">
+                        <button class="kb-upload-btn" onclick="document.getElementById('wsFileInput').click()">Upload File</button>
+                    </div>
+                    <div id="workspaceTree" class="kb-tree"><div class="kb-empty">Loading...</div></div>
+                </div>
             </div>
             <div class="sidebar-footer">
                 <button class="btn-back" onclick="backToDashboard()">&#8592; Dashboard</button>
@@ -784,6 +792,7 @@
             loadMessages();
             loadContainerExtensions();
             loadKnowledgeTree();
+            loadWorkspaceTree();
         }
 
         function backToDashboard() {
@@ -1165,7 +1174,7 @@
                     <span class="kb-file-icon">&#x1F4C4;</span>
                     <span class="kb-name">${esc(e.name)}</span>
                     <span class="kb-size">${sizeStr}</span>
-                    <a href="/api/store/knowledge/download?path=${encodeURIComponent(e.path)}" download="${esc(e.name)}" class="kb-download" onclick="event.stopPropagation()" title="Download">&#x2913;</a>
+                    <a href="/api/store/knowledge/download?path=${encodeURIComponent(e.path)}&token=${token}" download="${esc(e.name)}" class="kb-download" onclick="event.stopPropagation()" title="Download">&#x2913;</a>
                 </div>`;
             }).join('');
         }
@@ -1192,14 +1201,14 @@
 
             if (videoExts.includes(ext)) {
                 // Use video player
-                const videoUrl = `/api/store/knowledge/download?path=${encodeURIComponent(path)}`;
+                const videoUrl = `/api/store/knowledge/download?path=${encodeURIComponent(path)}&token=${token}`;
                 body.innerHTML = `<video controls class="file-viewer-video" src="${videoUrl}">Your browser does not support video playback.</video>`;
                 return;
             }
 
             if (imageExts.includes(ext)) {
                 // Use image viewer
-                const imageUrl = `/api/store/knowledge/download?path=${encodeURIComponent(path)}`;
+                const imageUrl = `/api/store/knowledge/download?path=${encodeURIComponent(path)}&token=${token}`;
                 body.innerHTML = `<img src="${imageUrl}" alt="${esc(name)}" class="file-viewer-image">`;
                 return;
             }
@@ -1243,6 +1252,109 @@
             }
 
             // Reset file input
+            event.target.value = '';
+        }
+
+        // --- Personal Workspace ---
+        async function loadWorkspaceTree() {
+            const container = document.getElementById('workspaceTree');
+            if (!activeContainer) { container.innerHTML = '<div class="kb-empty">No container selected</div>'; return; }
+            try {
+                const res = await fetch(`/api/containers/${activeContainer.id}/workspace`, { headers: authHeaders() });
+                if (!res.ok) { container.innerHTML = '<div class="kb-empty">Failed to load</div>'; return; }
+                const entries = await res.json();
+                if (!entries || entries.length === 0) {
+                    container.innerHTML = '<div class="kb-empty">No files yet</div>';
+                    return;
+                }
+                container.innerHTML = renderWSEntries(entries);
+            } catch (e) {
+                container.innerHTML = '<div class="kb-empty">Failed to load</div>';
+            }
+        }
+
+        function renderWSEntries(entries) {
+            return entries.map(e => {
+                if (e.is_dir) {
+                    const children = e.items && e.items.length > 0 ? renderWSEntries(e.items) : '<div class="kb-empty">Empty</div>';
+                    return `<div>
+                        <div class="kb-dir" onclick="toggleKBDir(this)">
+                            <span class="kb-dir-icon">&#9654;</span>
+                            <span class="kb-name">${esc(e.name)}</span>
+                        </div>
+                        <div class="kb-children collapsed">${children}</div>
+                    </div>`;
+                }
+                const sizeStr = e.size > 1024 ? (e.size / 1024).toFixed(1) + 'K' : e.size + 'B';
+                return `<div class="kb-file" onclick="openWSFile('${esc(e.path)}', '${esc(e.name)}')" title="${esc(e.path)}">
+                    <span class="kb-file-icon">&#x1F4C4;</span>
+                    <span class="kb-name">${esc(e.name)}</span>
+                    <span class="kb-size">${sizeStr}</span>
+                    <a href="/api/containers/${activeContainer.id}/workspace/download?path=${encodeURIComponent(e.path)}&token=${token}" download="${esc(e.name)}" class="kb-download" onclick="event.stopPropagation()" title="Download">&#x2913;</a>
+                </div>`;
+            }).join('');
+        }
+
+        async function openWSFile(path, name) {
+            const overlay = document.getElementById('fileViewerOverlay');
+            const title = document.getElementById('fileViewerTitle');
+            const body = document.getElementById('fileViewerBody');
+            title.textContent = name;
+            body.textContent = 'Loading...';
+            overlay.classList.remove('hidden');
+
+            const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'];
+            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+            const ext = name.split('.').pop().toLowerCase();
+
+            if (videoExts.includes(ext)) {
+                const url = `/api/containers/${activeContainer.id}/workspace/download?path=${encodeURIComponent(path)}&token=${token}`;
+                body.innerHTML = `<video controls class="file-viewer-video" src="${url}">Your browser does not support video playback.</video>`;
+                return;
+            }
+
+            if (imageExts.includes(ext)) {
+                const url = `/api/containers/${activeContainer.id}/workspace/download?path=${encodeURIComponent(path)}&token=${token}`;
+                body.innerHTML = `<img src="${url}" alt="${esc(name)}" class="file-viewer-image">`;
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/containers/${activeContainer.id}/workspace/read?path=${encodeURIComponent(path)}`, { headers: authHeaders() });
+                const data = await res.json();
+                if (!res.ok) {
+                    body.textContent = data.error || 'Failed to read file';
+                    return;
+                }
+                body.textContent = data.content;
+            } catch (e) {
+                body.textContent = 'Network error';
+            }
+        }
+
+        async function handleWSUpload(event) {
+            const file = event.target.files[0];
+            if (!file || !activeContainer) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch(`/api/containers/${activeContainer.id}/workspace/upload`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token },
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Upload failed: ' + (data.error || 'Unknown error'));
+                    return;
+                }
+                loadWorkspaceTree();
+            } catch (e) {
+                alert('Network error during upload');
+            }
+
             event.target.value = '';
         }
 

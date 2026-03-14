@@ -120,21 +120,26 @@ func (a *AuthAPI) Login(c *gin.Context) {
 }
 
 // AuthMiddleware protects routes by requiring a valid JWT.
+// Accepts token via Authorization header or ?token= query param (for download links).
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var tokenString string
+
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authorization header required"})
-			return
-		}
-
 		const bearerPrefix = "Bearer "
-		if len(authHeader) < len(bearerPrefix) || authHeader[:len(bearerPrefix)] != bearerPrefix {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization format"})
-			return
+		if len(authHeader) >= len(bearerPrefix) && authHeader[:len(bearerPrefix)] == bearerPrefix {
+			tokenString = authHeader[len(bearerPrefix):]
 		}
 
-		tokenString := authHeader[len(bearerPrefix):]
+		// Fallback: token query param (for <a href> download links that can't set headers)
+		if tokenString == "" {
+			tokenString = c.Query("token")
+		}
+
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authorization required"})
+			return
+		}
 
 		claims, err := parseJWT(tokenString)
 		if err != nil {

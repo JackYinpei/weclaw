@@ -74,6 +74,7 @@ type wsConn struct {
 	send           chan []byte
 	api            *ContainerAPI
 	container      *container.Container
+	accountID      uint
 	ctx            context.Context
 	cancel         context.CancelFunc
 	inFlight       bool
@@ -147,6 +148,7 @@ func (api *ContainerAPI) HandleWebSocket(c *gin.Context) {
 		send:      make(chan []byte, 256),
 		api:       api,
 		container: ctr,
+		accountID: accountID,
 		ctx:       ctx,
 		cancel:    cancel,
 	}
@@ -330,8 +332,9 @@ func (wc *wsConn) handleSendMessage(message string) {
 		reqID := fmt.Sprintf("req-%d", time.Now().UnixMilli())
 		wc.sendJSON(wsOutgoing{Type: "stream_start", RequestID: reqID})
 
-		// Stream SSE from gateway (with previous response ID for context)
-		ch, err := wc.api.openclawClient.StreamMessage(wc.ctx, ctr.ContainerPort, ctr.GatewayToken, message, prevRespID)
+		// Stream SSE from gateway (with user ID for session routing and previous response ID)
+		userID := fmt.Sprintf("weclaw-acct%d-ctr%d", wc.accountID, ctr.ID)
+		ch, err := wc.api.openclawClient.StreamMessage(wc.ctx, ctr.ContainerPort, ctr.GatewayToken, message, userID, prevRespID)
 		if err != nil {
 			wc.sendJSON(wsOutgoing{Type: "stream_error", RequestID: reqID, Error: err.Error()})
 			return

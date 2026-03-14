@@ -23,20 +23,23 @@ type responsesRequest struct {
 	Model              string `json:"model"`
 	Input              string `json:"input"`
 	Stream             bool   `json:"stream"`
+	User               string `json:"user,omitempty"`
 	PreviousResponseID string `json:"previous_response_id,omitempty"`
 }
 
 // StreamMessage sends a message to the OpenClaw Gateway /v1/responses endpoint with streaming
 // and returns a channel of StreamEvents. The channel is closed when the stream ends.
 // If the gateway returns 404 (endpoint not enabled), it falls back to synchronous SendMessage.
-// previousResponseID is optional and used to maintain conversation context across messages.
-func (c *Client) StreamMessage(ctx context.Context, port int, token, message, previousResponseID string) (<-chan StreamEvent, error) {
+// userID is used for stable session routing (conversation context continuity).
+// previousResponseID is optional (currently ignored by gateway, kept for forward compatibility).
+func (c *Client) StreamMessage(ctx context.Context, port int, token, message, userID, previousResponseID string) (<-chan StreamEvent, error) {
 	url := fmt.Sprintf("http://127.0.0.1:%d/v1/responses", port)
 
 	reqBody := responsesRequest{
 		Model:              "openclaw:main",
 		Input:              message,
 		Stream:             true,
+		User:               userID,
 		PreviousResponseID: previousResponseID,
 	}
 
