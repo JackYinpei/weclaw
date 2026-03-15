@@ -29,8 +29,9 @@ type ContainerAPI struct {
 	containerMgr     *container.Manager
 	openclawClient   *openclaw.Client
 	groupChatService *groupchat.Service
-	accountRepo      interface {
+	accountRepo interface {
 		FindByID(ctx context.Context, id uint) (*account.Account, error)
+		FindByUsername(ctx context.Context, username string) (*account.Account, error)
 	}
 }
 
@@ -44,6 +45,7 @@ func NewContainerAPI(
 	groupChatService *groupchat.Service,
 	accountRepo interface {
 		FindByID(ctx context.Context, id uint) (*account.Account, error)
+		FindByUsername(ctx context.Context, username string) (*account.Account, error)
 	},
 ) *ContainerAPI {
 	return &ContainerAPI{
@@ -125,6 +127,7 @@ func (api *ContainerAPI) RegisterRoutes(r *gin.Engine) {
 		rooms.POST("", api.CreateRoom)
 		rooms.DELETE("/:roomId", api.DeleteRoom)
 		rooms.POST("/:roomId/join", api.JoinRoom)
+		rooms.POST("/:roomId/invite", api.InviteToRoom)
 		rooms.POST("/:roomId/leave", api.LeaveRoom)
 		rooms.GET("/:roomId/members", api.GetRoomMembers)
 		rooms.GET("/:roomId/messages", api.GetRoomMessages)

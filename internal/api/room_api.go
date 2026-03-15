@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -214,18 +215,76 @@ func (api *ContainerAPI) NewSession(c *gin.Context) {
 		return
 	}
 
-	// Reset lastResponseID on all active WebSocket connections for this container.
-	// This makes the next message start a fresh OpenClaw session.
+	// Reset lastResponseIDs on all active WebSocket connections for this container.
+	// If session_tag is provided, only clear that session; otherwise clear all.
+	var req struct {
+		SessionTag string `json:"session_tag"`
+	}
+	_ = c.ShouldBindJSON(&req)
+
 	hub.mu.Lock()
 	conns := hub.conns[ctr.ID]
 	hub.mu.Unlock()
 	for _, wc := range conns {
 		wc.mu.Lock()
-		wc.lastResponseID = ""
+		if req.SessionTag != "" {
+			delete(wc.lastResponseIDs, req.SessionTag)
+		} else {
+			wc.lastResponseIDs = make(map[string]string)
+		}
 		wc.mu.Unlock()
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "new session started"})
+}
+
+func (api *ContainerAPI) InviteToRoom(c *gin.Context) {
+	accountID := getAccountID(c)
+	roomID, err := parseRoomID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room id"})
+		return
+	}
+
+	// Verify caller is a member
+	if !api.groupChatService.IsMember(roomID, accountID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this room"})
+		return
+	}
+
+	var req struct {
+		Username string `json:"username" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Find target user
+	targetAcc, err := api.accountRepo.FindByUsername(context.Background(), req.Username)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	// Get target user's first container
+	ctr, err := api.containerService.GetFirstActiveByAccount(targetAcc.ID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "target user has no containers"})
+		return
+	}
+
+	// Join room
+	member, err := api.groupChatService.JoinRoom(roomID, targetAcc.ID, ctr.ID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Broadcast updated member list
+	api.broadcastMemberList(roomID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "invited", "member": member})
 }
 
 // --- Helpers ---

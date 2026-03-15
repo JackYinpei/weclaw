@@ -24,8 +24,9 @@ var upgrader = websocket.Upgrader{
 // --- WebSocket message types ---
 
 type wsIncoming struct {
-	Type    string `json:"type"`
-	Message string `json:"message,omitempty"`
+	Type       string `json:"type"`
+	Message    string `json:"message,omitempty"`
+	SessionTag string `json:"session_tag,omitempty"`
 }
 
 type wsOutgoing struct {
@@ -70,16 +71,16 @@ func (h *connHub) remove(containerID uint, c *wsConn) {
 // --- WebSocket Connection ---
 
 type wsConn struct {
-	conn           *websocket.Conn
-	send           chan []byte
-	api            *ContainerAPI
-	container      *container.Container
-	accountID      uint
-	ctx            context.Context
-	cancel         context.CancelFunc
-	inFlight       bool
-	lastResponseID string // For conversation context continuity
-	mu             sync.Mutex // guards inFlight and lastResponseID
+	conn            *websocket.Conn
+	send            chan []byte
+	api             *ContainerAPI
+	container       *container.Container
+	accountID       uint
+	ctx             context.Context
+	cancel          context.CancelFunc
+	inFlight        bool
+	lastResponseIDs map[string]string // session_tag -> lastResponseID
+	mu              sync.Mutex        // guards inFlight and lastResponseIDs
 }
 
 func (wc *wsConn) sendJSON(msg wsOutgoing) {
@@ -144,13 +145,14 @@ func (api *ContainerAPI) HandleWebSocket(c *gin.Context) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wc := &wsConn{
-		conn:      ws,
-		send:      make(chan []byte, 256),
-		api:       api,
-		container: ctr,
-		accountID: accountID,
-		ctx:       ctx,
-		cancel:    cancel,
+		conn:            ws,
+		send:            make(chan []byte, 256),
+		api:             api,
+		container:       ctr,
+		accountID:       accountID,
+		ctx:             ctx,
+		cancel:          cancel,
+		lastResponseIDs: make(map[string]string),
 	}
 
 	hub.add(ctr.ID, wc)
@@ -198,7 +200,7 @@ func (wc *wsConn) readPump() {
 
 		switch msg.Type {
 		case "send_message":
-			wc.handleSendMessage(msg.Message)
+			wc.handleSendMessage(msg.Message, msg.SessionTag)
 		case "ping_gateway":
 			wc.handlePingGateway()
 		case "pong":
@@ -289,10 +291,14 @@ func (wc *wsConn) gatewayStatusPump() {
 }
 
 // handleSendMessage processes an incoming send_message request.
-func (wc *wsConn) handleSendMessage(message string) {
+func (wc *wsConn) handleSendMessage(message string, sessionTag string) {
 	if message == "" {
 		wc.sendJSON(wsOutgoing{Type: "error", Error: "empty message"})
 		return
+	}
+
+	if sessionTag == "" {
+		sessionTag = "default"
 	}
 
 	// Concurrency guard: only one message in flight at a time
@@ -303,7 +309,7 @@ func (wc *wsConn) handleSendMessage(message string) {
 		return
 	}
 	wc.inFlight = true
-	prevRespID := wc.lastResponseID
+	prevRespID := wc.lastResponseIDs[sessionTag]
 	wc.mu.Unlock()
 
 	go func() {
@@ -355,7 +361,7 @@ func (wc *wsConn) handleSendMessage(message string) {
 				// Save response ID for next message's context
 				if evt.ResponseID != "" {
 					wc.mu.Lock()
-					wc.lastResponseID = evt.ResponseID
+					wc.lastResponseIDs[sessionTag] = evt.ResponseID
 					wc.mu.Unlock()
 				}
 				// If we got deltas but no text_done, send stream_done with accumulated text

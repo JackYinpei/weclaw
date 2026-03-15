@@ -47,6 +47,13 @@ func (s *Service) GetByID(id uint, accountID uint) (*Container, error) {
 	return &c, nil
 }
 
+// GetFirstActiveByAccount returns the first (oldest) container for an account.
+func (s *Service) GetFirstActiveByAccount(accountID uint) (*Container, error) {
+	var c Container
+	err := s.db.Where("account_id = ?", accountID).Order("created_at ASC").First(&c).Error
+	return &c, err
+}
+
 // GetByIDNoOwnerCheck returns a container by ID without ownership check (for cross-account lookups like group chat).
 func (s *Service) GetByIDNoOwnerCheck(id uint) (*Container, error) {
 	var c Container
