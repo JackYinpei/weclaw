@@ -31,6 +31,9 @@ go.work.sum
 # macos
 .DS_Store
 
+# screenshots
+Snipaste_*
+
 # build outputs
 bin/
 

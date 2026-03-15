@@ -402,9 +402,6 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 		searchCfg := map[string]any{
 			"enabled": true,
 		}
-		if openclawCfg.WebSearch.APIKey != "" {
-			searchCfg["apiKey"] = openclawCfg.WebSearch.APIKey
-		}
 		if openclawCfg.WebSearch.MaxResults > 0 {
 			searchCfg["maxResults"] = openclawCfg.WebSearch.MaxResults
 		}
@@ -413,6 +410,12 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 		}
 		if openclawCfg.WebSearch.CacheTTLMinutes > 0 {
 			searchCfg["cacheTtlMinutes"] = openclawCfg.WebSearch.CacheTTLMinutes
+		}
+		// Kimi (Moonshot) provider: tools.web.search.kimi.apiKey
+		if openclawCfg.WebSearch.Kimi != nil && openclawCfg.WebSearch.Kimi.APIKey != "" {
+			searchCfg["kimi"] = map[string]any{
+				"apiKey": openclawCfg.WebSearch.Kimi.APIKey,
+			}
 		}
 		toolsSection["web"] = map[string]any{
 			"search": searchCfg,

@@ -47,11 +47,16 @@ type OpenClawConfig struct {
 
 // WebSearchConfig holds web search tool configuration (tools.web.search in openclaw.json).
 type WebSearchConfig struct {
-	Enabled         bool   `mapstructure:"enabled"`
-	APIKey          string `mapstructure:"api_key"`
-	MaxResults      int    `mapstructure:"max_results"`
-	TimeoutSeconds  int    `mapstructure:"timeout_seconds"`
-	CacheTTLMinutes int    `mapstructure:"cache_ttl_minutes"`
+	Enabled         bool              `mapstructure:"enabled"`
+	MaxResults      int               `mapstructure:"max_results"`
+	TimeoutSeconds  int               `mapstructure:"timeout_seconds"`
+	CacheTTLMinutes int               `mapstructure:"cache_ttl_minutes"`
+	Kimi            *KimiSearchConfig `mapstructure:"kimi"`
+}
+
+// KimiSearchConfig holds Kimi (Moonshot) web search provider configuration.
+type KimiSearchConfig struct {
+	APIKey string `mapstructure:"api_key"`
 }
 
 // DatabaseConfig holds database configuration.

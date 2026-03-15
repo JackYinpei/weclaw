@@ -76,7 +76,8 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 - **配置位置**: `configs/config.yaml` 的 `openclaw.web_search` 段。
 - **配置注入**: `prepareOpenClawHostDir()` 在构建 `openclaw.json` 时，若 `WebSearch` 非空且 `Enabled` 为 true，会将配置注入到 `tools.web.search` 节中（对应 OpenClaw 的 `tools.web.search` 结构）。
 - **生效方式**: 新容器自动生效；已有容器需通过 `POST /api/containers/:id/apply` 触发 `RegenerateConfig()` 重写 `openclaw.json` 并重启容器。
-- **配置结构**: `WebSearchConfig` 包含 `enabled`（bool）、`api_key`、`max_results`、`timeout_seconds`、`cache_ttl_minutes`，`enabled` 为 false 或未配置时不注入。
+- **配置结构**: `WebSearchConfig` 包含 `enabled`（bool）、`max_results`、`timeout_seconds`、`cache_ttl_minutes` 顶层字段，以及嵌套的 `kimi.api_key`（对应 `tools.web.search.kimi.apiKey`）。`enabled` 为 false 或未配置时不注入。
+- **搜索引擎支持**: OpenClaw 支持 Brave、Gemini、Grok、Kimi、Perplexity 等搜索引擎，各引擎的 API Key 放在对应的嵌套配置中（如 `kimi.api_key`）。详见 `reference/web-search.md`。
 
 ### 8. 共享知识库（宿主机目录 Bind Mount）
 - 系统启动时自动创建宿主机共享知识库目录（默认 `./data/shared-knowledge`）。
