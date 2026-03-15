@@ -11,6 +11,7 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 
 - **Account** (1) → (N) **Container**：每个用户可拥有多个容器
 - **Container** (1) → (N) **UserSkill / UserMCP / MessageLog**：Skills/MCP/消息日志绑定到容器
+- **ChatRoom** (N) ←→ (N) **Account+Container**：群聊房间，多用户多 Agent 参与
 - 所有 API 从 JWT 的 `account_id` 出发，URL 中的 `:id` 为 Container 数据库 ID
 - 权限隔离：后端从 JWT 取 accountID，所有查询 WHERE account_id = ?
 
@@ -88,6 +89,19 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
   - `MEMORY.md` — 长期记忆
   - `BOOTSTRAP.md` — 首次启动配置（运行后自删除）
 
+### 9. 多会话与 Switch Bar（聊天页标签栏）
+- **Switch Bar** 位于聊天页 `chat-header` 下方，统一管理私聊 Session 和群聊 Room 的切换。
+- **多 Session 支持**: 每个容器连接下可创建多个独立会话标签（Chat 1, Chat 2...），每个 session 拥有独立的 `lastResponseID`，通过 WebSocket `send_message` 中的 `session_tag` 字段区分。
+- **后端 `lastResponseIDs`**: `wsConn.lastResponseIDs` 是 `map[string]string`（key 为 `session_tag`），支持同一个 WebSocket 连接上的多会话隔离。前端发送 `session_tag: "session-<id>"`，后端据此存取不同的 `lastResponseID`。
+- **Room 标签**: 用户已加入的群聊房间也作为标签出现在 Switch Bar 中，点击即切换到群聊视图（加载房间消息 + 打开房间 WebSocket + 显示成员栏）。
+- **统一消息区**: `messagesArea` 和 `messageInput` 在 Session 和 Room 之间共享复用，切换 Session 时保存/恢复 HTML 快照，切换 Room 时从 API 重新加载。
+- **Dashboard 无 Group Chats 区域**: 群聊入口已全部移到 Switch Bar 的 `+ Room` / `Join` 按钮中。
+
+### 10. 群聊邀请用户
+- **API**: `POST /api/rooms/:roomId/invite` body: `{ "username": "xxx" }`
+- **流程**: 验证调用者是房间成员 → 通过 `FindByUsername` 查找目标用户 → 通过 `GetFirstActiveByAccount` 获取其第一个容器 → `JoinRoom` 添加成员 → 广播 `member_list` 更新。
+- **前端入口**: 房间成员栏末尾的 "+ Invite" 按钮，弹出模态框输入用户名。
+
 ## 项目结构
 
 ```
@@ -101,8 +115,10 @@ weclaw/
 │   ├── api/                     # REST API + WebSocket 端点
 │   │   ├── auth.go              # JWT 认证（登录/注册 + AuthMiddleware + parseJWT）
 │   │   ├── openai_api.go        # OpenAI 兼容 API（JWT + X-Container-ID）
-│   │   ├── store_api.go         # Container CRUD + Skills/MCP 配置 + Store + Knowledge
-│   │   └── ws.go                # WebSocket handler（connHub + 流式消息转发 + Gateway 状态推送）
+│   │   ├── room_api.go          # 群聊房间 REST API（CRUD + 邀请 + 成员管理 + NewSession）
+│   │   ├── store_api.go         # Container CRUD + Skills/MCP 配置 + Store + Knowledge + 路由注册
+│   │   ├── ws.go                # 容器 WebSocket（connHub + 多 session 流式消息转发 + Gateway 状态推送）
+│   │   └── ws_room.go           # 群聊 WebSocket（@mention 调度 + 多 Agent 流式响应）
 │   ├── catalog/                 # Skills/MCP 商店与容器选择管理
 │   │   ├── model.go             # SkillCatalog, UserSkill, MCPCatalog, UserMCP 模型 (ContainerID 外键)
 │   │   └── service.go           # CRUD + BuildOpenClawExtras(containerID)
@@ -110,8 +126,11 @@ weclaw/
 │   ├── container/               # Docker 管理 + 容器业务层
 │   │   ├── model.go             # Container + MessageLog GORM 模型
 │   │   ├── manager.go           # Docker 操作层（创建/挂载/配置注入/共享知识库）
-│   │   ├── service.go           # 业务 CRUD（ListByAccount/Create/Delete/ApplyChanges）
+│   │   ├── service.go           # 业务 CRUD（ListByAccount/Create/Delete/ApplyChanges/GetFirstActiveByAccount）
 │   │   └── pool.go              # 端口池管理
+│   ├── groupchat/               # 群聊房间管理
+│   │   ├── model.go             # ChatRoom, ChatRoomMember, ChatRoomMessage GORM 模型
+│   │   └── service.go           # 房间 CRUD + 成员管理 + 消息持久化
 │   ├── openclaw/                # 对接 OpenClaw 指令交互
 │   │   ├── client.go            # Gateway HTTP API 方式发送消息（同步 + streamHTTPClient）
 │   │   ├── stream.go            # SSE 流式客户端（StreamMessage → /v1/responses，降级回退）
@@ -160,8 +179,11 @@ sudo ./bin/weclaw
 
 ### WebSocket 流式通信
 - `GET /ws/containers/:id?token=<JWT>` — WebSocket 连接（JWT 走 query param）
-  - Client → Server: `send_message` / `ping_gateway` / `pong`
+  - Client → Server: `send_message` (含 `session_tag` 字段用于多会话隔离) / `ping_gateway` / `pong`
   - Server → Client: `connected` / `gateway_status` / `stream_start` / `stream_delta` / `stream_done` / `stream_error` / `ping` / `error`
+- `GET /ws/rooms/:roomId?token=<JWT>` — 群聊 WebSocket 连接
+  - Client → Server: `send_message` / `pong`
+  - Server → Client: `connected` / `member_list` / `room_message` / `room_stream_start` / `room_stream_delta` / `room_stream_done` / `room_stream_error` / `ping` / `error`
 
 ### 容器扩展配置（JWT 保护）
 - `GET /api/containers/:id/skills` — 容器已装 Skill
@@ -182,6 +204,16 @@ sudo ./bin/weclaw
 - `DELETE /api/store/mcps/:name` — 移除商店 MCP
 - `GET /api/store/knowledge` — 列出共享知识库文件树
 - `GET /api/store/knowledge/read?path=xxx` — 读取知识库文件内容
+
+### 群聊房间（JWT 保护）
+- `GET /api/rooms` — 列出当前用户已加入的房间
+- `POST /api/rooms` — 创建新房间（body: `{name, container_id}`）
+- `DELETE /api/rooms/:roomId` — 删除房间（仅创建者）
+- `POST /api/rooms/:roomId/join` — 加入房间（body: `{container_id}`）
+- `POST /api/rooms/:roomId/invite` — 邀请用户（body: `{username}`）
+- `POST /api/rooms/:roomId/leave` — 离开房间
+- `GET /api/rooms/:roomId/members` — 获取房间成员列表
+- `GET /api/rooms/:roomId/messages` — 获取房间消息历史
 
 ### OpenAI 兼容
 - `POST /v1/chat/completions` — OpenAI API 兼容端点（JWT + X-Container-ID header）
