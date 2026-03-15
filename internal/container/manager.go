@@ -367,6 +367,12 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 				"token": gatewayToken,
 			},
 		},
+		"commands": map[string]any{
+			"text":   true,  // 解析以 / 开头的文本命令
+			"bash":   false, // 安全起见禁用 bash
+			"config": false, // 禁用 /config 写磁盘
+			"debug":  false, // 禁用 /debug
+		},
 		"tools": map[string]any{
 			"profile": openclawCfg.ToolsProfile,
 		},

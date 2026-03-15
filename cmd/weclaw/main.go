@@ -15,6 +15,7 @@ import (
 	"github.com/qcy/weclaw/internal/catalog"
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
+	"github.com/qcy/weclaw/internal/groupchat"
 	"github.com/qcy/weclaw/internal/openclaw"
 	"github.com/qcy/weclaw/internal/store"
 	"github.com/qcy/weclaw/pkg/logger"
@@ -59,6 +60,7 @@ func main() {
 	catalogService := catalog.NewService(db.DB())
 	openclawClient := openclaw.NewClient()
 	containerService := container.NewService(db.DB(), containerMgr, catalogService, cfg)
+	groupChatService := groupchat.NewService(db.DB())
 
 	// Setup Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -87,7 +89,7 @@ func main() {
 	authAPI.RegisterRoutes(r)
 
 	// Register Container API routes (CRUD + chat + skills/MCP + store)
-	containerAPI := api.NewContainerAPI(cfg, containerService, catalogService, containerMgr, openclawClient)
+	containerAPI := api.NewContainerAPI(cfg, containerService, catalogService, containerMgr, openclawClient, groupChatService, accountRepo)
 	containerAPI.RegisterRoutes(r)
 
 	// Register OpenAI compatible API routes

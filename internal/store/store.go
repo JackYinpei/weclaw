@@ -8,6 +8,7 @@ import (
 	"github.com/qcy/weclaw/internal/catalog"
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
+	"github.com/qcy/weclaw/internal/groupchat"
 	"github.com/qcy/weclaw/pkg/logger"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -36,6 +37,7 @@ func New(cfg *config.DatabaseConfig) (*Store, error) {
 		&container.Container{}, &container.MessageLog{},
 		&catalog.SkillCatalog{}, &catalog.UserSkill{},
 		&catalog.MCPCatalog{}, &catalog.UserMCP{},
+		&groupchat.ChatRoom{}, &groupchat.ChatRoomMember{}, &groupchat.ChatRoomMessage{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}

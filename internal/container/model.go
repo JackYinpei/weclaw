@@ -15,7 +15,8 @@ type Container struct {
 	ContainerPort int            `json:"container_port"`
 	GatewayToken  string         `gorm:"size:256" json:"gateway_token"`
 	DisplayName   string         `gorm:"size:128" json:"display_name"`
-	Status        string         `gorm:"size:20;default:pending" json:"status"` // pending/active/sleeping/disabled
+	AllowMention  bool           `gorm:"default:true" json:"allow_mention"` // Whether others can @ this agent in group chat
+	Status        string         `gorm:"size:20;default:pending" json:"status"`
 	LastActiveAt  *time.Time     `json:"last_active_at"`
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`

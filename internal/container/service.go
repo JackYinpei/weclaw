@@ -47,6 +47,15 @@ func (s *Service) GetByID(id uint, accountID uint) (*Container, error) {
 	return &c, nil
 }
 
+// GetByIDNoOwnerCheck returns a container by ID without ownership check (for cross-account lookups like group chat).
+func (s *Service) GetByIDNoOwnerCheck(id uint) (*Container, error) {
+	var c Container
+	if err := s.db.First(&c, id).Error; err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 // Create creates a new container for an account.
 func (s *Service) Create(accountID uint, displayName string) (*Container, error) {
 	c := &Container{
@@ -128,6 +137,11 @@ func (s *Service) Delete(id uint, accountID uint) error {
 // UpdateStatus updates a container's status.
 func (s *Service) UpdateStatus(id uint, status string) error {
 	return s.db.Model(&Container{}).Where("id = ?", id).Update("status", status).Error
+}
+
+// UpdateAllowMention updates a container's allow_mention flag.
+func (s *Service) UpdateAllowMention(id uint, allow bool) error {
+	return s.db.Model(&Container{}).Where("id = ?", id).Update("allow_mention", allow).Error
 }
 
 // TouchActivity updates the container's last active time.

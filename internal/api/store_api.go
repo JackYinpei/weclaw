@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/qcy/weclaw/internal/account"
 	"github.com/qcy/weclaw/internal/catalog"
 	"github.com/qcy/weclaw/internal/config"
 	"github.com/qcy/weclaw/internal/container"
+	"github.com/qcy/weclaw/internal/groupchat"
 	"github.com/qcy/weclaw/internal/openclaw"
 	"github.com/qcy/weclaw/pkg/logger"
 )
@@ -26,6 +28,10 @@ type ContainerAPI struct {
 	catalogService   *catalog.Service
 	containerMgr     *container.Manager
 	openclawClient   *openclaw.Client
+	groupChatService *groupchat.Service
+	accountRepo      interface {
+		FindByID(ctx context.Context, id uint) (*account.Account, error)
+	}
 }
 
 // NewContainerAPI creates a new container API handler.
@@ -35,6 +41,10 @@ func NewContainerAPI(
 	catalogService *catalog.Service,
 	containerMgr *container.Manager,
 	openclawClient *openclaw.Client,
+	groupChatService *groupchat.Service,
+	accountRepo interface {
+		FindByID(ctx context.Context, id uint) (*account.Account, error)
+	},
 ) *ContainerAPI {
 	return &ContainerAPI{
 		cfg:              cfg,
@@ -42,13 +52,25 @@ func NewContainerAPI(
 		catalogService:   catalogService,
 		containerMgr:     containerMgr,
 		openclawClient:   openclawClient,
+		groupChatService: groupChatService,
+		accountRepo:      accountRepo,
 	}
+}
+
+// getUsernameByID fetches a username from the account repo.
+func (api *ContainerAPI) getUsernameByID(accountID uint) string {
+	acc, err := api.accountRepo.FindByID(context.Background(), accountID)
+	if err != nil {
+		return fmt.Sprintf("User-%d", accountID)
+	}
+	return acc.Username
 }
 
 // RegisterRoutes registers all container and store API routes.
 func (api *ContainerAPI) RegisterRoutes(r *gin.Engine) {
 	// WebSocket endpoint (JWT via query param, handler does its own auth)
 	r.GET("/ws/containers/:id", api.HandleWebSocket)
+	r.GET("/ws/rooms/:roomId", api.HandleRoomWebSocket)
 
 	// Container CRUD + chat + skills/MCP
 	containers := r.Group("/api/containers")
@@ -61,6 +83,8 @@ func (api *ContainerAPI) RegisterRoutes(r *gin.Engine) {
 		containers.POST("/:id/send", api.SendMessage)
 		containers.GET("/:id/messages", api.GetMessages)
 		containers.GET("/:id/gateway-status", api.GatewayStatus)
+		containers.PUT("/:id/allow-mention", api.UpdateAllowMention)
+		containers.POST("/:id/new-session", api.NewSession)
 		containers.GET("/:id/skills", api.GetContainerSkills)
 		containers.POST("/:id/skills", api.EnableSkill)
 		containers.DELETE("/:id/skills/:name", api.DisableSkill)
@@ -91,6 +115,19 @@ func (api *ContainerAPI) RegisterRoutes(r *gin.Engine) {
 		store.GET("/knowledge/read", api.ReadKnowledgeFile)
 		store.POST("/knowledge/upload", api.UploadKnowledgeFile)
 		store.GET("/knowledge/download", api.DownloadKnowledgeFile)
+	}
+
+	// Group chat rooms
+	rooms := r.Group("/api/rooms")
+	rooms.Use(AuthMiddleware())
+	{
+		rooms.GET("", api.ListRooms)
+		rooms.POST("", api.CreateRoom)
+		rooms.DELETE("/:roomId", api.DeleteRoom)
+		rooms.POST("/:roomId/join", api.JoinRoom)
+		rooms.POST("/:roomId/leave", api.LeaveRoom)
+		rooms.GET("/:roomId/members", api.GetRoomMembers)
+		rooms.GET("/:roomId/messages", api.GetRoomMessages)
 	}
 }
 
