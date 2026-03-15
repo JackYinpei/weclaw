@@ -37,11 +37,21 @@ type DockerConfig struct {
 
 // OpenClawConfig holds OpenClaw integration configuration.
 type OpenClawConfig struct {
-	APIKey       string `mapstructure:"api_key"`
-	BaseURL      string `mapstructure:"base_url"`
-	ModelProvider string `mapstructure:"model_provider"`
-	ModelName    string `mapstructure:"model_name"`
-	ToolsProfile string `mapstructure:"tools_profile"`
+	APIKey       string           `mapstructure:"api_key"`
+	BaseURL      string           `mapstructure:"base_url"`
+	ModelProvider string          `mapstructure:"model_provider"`
+	ModelName    string           `mapstructure:"model_name"`
+	ToolsProfile string           `mapstructure:"tools_profile"`
+	WebSearch    *WebSearchConfig `mapstructure:"web_search"`
+}
+
+// WebSearchConfig holds web search tool configuration (tools.web.search in openclaw.json).
+type WebSearchConfig struct {
+	Enabled         bool   `mapstructure:"enabled"`
+	APIKey          string `mapstructure:"api_key"`
+	MaxResults      int    `mapstructure:"max_results"`
+	TimeoutSeconds  int    `mapstructure:"timeout_seconds"`
+	CacheTTLMinutes int    `mapstructure:"cache_ttl_minutes"`
 }
 
 // DatabaseConfig holds database configuration.

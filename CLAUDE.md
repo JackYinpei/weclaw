@@ -72,7 +72,13 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 - **动态配置更新**: 用户通过 Web UI 安装/卸载后，调用 `POST /api/containers/:id/apply` 触发 `RegenerateConfig()`。
 - **数据库持久化**: 用户的 Skill/MCP 选择存储在 SQLite 的 `user_skills` 和 `user_mcps` 表中（外键为 `container_id`）。
 
-### 7. 共享知识库（宿主机目录 Bind Mount）
+### 7. Web 搜索配置（可选）
+- **配置位置**: `configs/config.yaml` 的 `openclaw.web_search` 段。
+- **配置注入**: `prepareOpenClawHostDir()` 在构建 `openclaw.json` 时，若 `WebSearch` 非空且 `Enabled` 为 true，会将配置注入到 `tools.web.search` 节中（对应 OpenClaw 的 `tools.web.search` 结构）。
+- **生效方式**: 新容器自动生效；已有容器需通过 `POST /api/containers/:id/apply` 触发 `RegenerateConfig()` 重写 `openclaw.json` 并重启容器。
+- **配置结构**: `WebSearchConfig` 包含 `enabled`（bool）、`api_key`、`max_results`、`timeout_seconds`、`cache_ttl_minutes`，`enabled` 为 false 或未配置时不注入。
+
+### 8. 共享知识库（宿主机目录 Bind Mount）
 - 系统启动时自动创建宿主机共享知识库目录（默认 `./data/shared-knowledge`）。
 - 所有用户容器以**读写**模式 Bind Mount 该目录到 `/home/node/shared-knowledge`。OpenClaw 可以读取并写入共享知识库。
 - 创建容器时自动写入 `USER.md` 到容器 workspace 目录（`~/.openclaw/workspace/USER.md`），告知 agent 共享知识库路径。
@@ -80,7 +86,7 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 - 配置项在 `configs/config.yaml` 的 `knowledge_base` 段。
 - Web 侧边栏展示共享知识库文件树，支持点击查看文本文件内容。
 
-### 8. OpenClaw 系统提示词注入机制
+### 9. OpenClaw 系统提示词注入机制
 - OpenClaw 通过 **workspace 目录**（`~/.openclaw/workspace/`）下的约定文件自动注入系统提示词，**不是** `~/.openclaw/` 根目录：
   - `SOUL.md` — 核心身份和行为特征（仅主 agent）
   - `AGENTS.md` — 操作指令和持久化记忆（所有 agent，由 OpenClaw bootstrap 自动生成，不要覆盖）
@@ -89,7 +95,7 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
   - `MEMORY.md` — 长期记忆
   - `BOOTSTRAP.md` — 首次启动配置（运行后自删除）
 
-### 9. 多会话与 Switch Bar（聊天页标签栏）
+### 10. 多会话与 Switch Bar（聊天页标签栏）
 - **Switch Bar** 位于聊天页 `chat-header` 下方，统一管理私聊 Session 和群聊 Room 的切换。
 - **多 Session 支持**: 每个容器连接下可创建多个独立会话标签（Chat 1, Chat 2...），每个 session 拥有独立的 `lastResponseID`，通过 WebSocket `send_message` 中的 `session_tag` 字段区分。
 - **后端 `lastResponseIDs`**: `wsConn.lastResponseIDs` 是 `map[string]string`（key 为 `session_tag`），支持同一个 WebSocket 连接上的多会话隔离。前端发送 `session_tag: "session-<id>"`，后端据此存取不同的 `lastResponseID`。
@@ -97,7 +103,7 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 - **统一消息区**: `messagesArea` 和 `messageInput` 在 Session 和 Room 之间共享复用，切换 Session 时保存/恢复 HTML 快照，切换 Room 时从 API 重新加载。
 - **Dashboard 无 Group Chats 区域**: 群聊入口已全部移到 Switch Bar 的 `+ Room` / `Join` 按钮中。
 
-### 10. 群聊邀请用户
+### 11. 群聊邀请用户
 - **API**: `POST /api/rooms/:roomId/invite` body: `{ "username": "xxx" }`
 - **流程**: 验证调用者是房间成员 → 通过 `FindByUsername` 查找目标用户 → 通过 `GetFirstActiveByAccount` 获取其第一个容器 → `JoinRoom` 添加成员 → 广播 `member_list` 更新。
 - **前端入口**: 房间成员栏末尾的 "+ Invite" 按钮，弹出模态框输入用户名。

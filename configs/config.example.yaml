@@ -21,6 +21,14 @@ openclaw:
   model_provider: "openai"
   model_name: "zai-org/GLM-5"
   tools_profile: "full"
+  # Web 搜索配置（可选）- 对应 openclaw.json 中的 tools.web.search
+  # 需要 Kimi API Key，从 https://platform.moonshot.cn 获取
+  web_search:
+    enabled: true
+    api_key: "your-kimi-api-key"
+    max_results: 5
+    timeout_seconds: 30
+    cache_ttl_minutes: 15
 
 knowledge_base:
   host_dir: "./data/shared-knowledge"

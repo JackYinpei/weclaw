@@ -396,6 +396,29 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 		},
 	}
 
+	// 按需注入 web search 到 tools.web.search 配置
+	if openclawCfg.WebSearch != nil && openclawCfg.WebSearch.Enabled {
+		toolsSection := cfgMap["tools"].(map[string]any)
+		searchCfg := map[string]any{
+			"enabled": true,
+		}
+		if openclawCfg.WebSearch.APIKey != "" {
+			searchCfg["apiKey"] = openclawCfg.WebSearch.APIKey
+		}
+		if openclawCfg.WebSearch.MaxResults > 0 {
+			searchCfg["maxResults"] = openclawCfg.WebSearch.MaxResults
+		}
+		if openclawCfg.WebSearch.TimeoutSeconds > 0 {
+			searchCfg["timeoutSeconds"] = openclawCfg.WebSearch.TimeoutSeconds
+		}
+		if openclawCfg.WebSearch.CacheTTLMinutes > 0 {
+			searchCfg["cacheTtlMinutes"] = openclawCfg.WebSearch.CacheTTLMinutes
+		}
+		toolsSection["web"] = map[string]any{
+			"search": searchCfg,
+		}
+	}
+
 	// Inject skills configuration
 	if extras != nil && len(extras.Skills) > 0 {
 		skillsSection := map[string]any{
