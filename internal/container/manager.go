@@ -253,6 +253,15 @@ func (m *Manager) CreateContainer(ctx context.Context, userOpenID string, opencl
 		"user", userOpenID,
 	)
 
+	// Install mcporter binary if exa search is enabled
+	if openclawCfg.ExaSearch != nil && openclawCfg.ExaSearch.Enabled && openclawCfg.ExaSearch.APIKey != "" {
+		// Give container a moment to initialize before exec
+		time.Sleep(2 * time.Second)
+		if err := m.InstallMcporter(ctx, resp.ID); err != nil {
+			logger.Warn("Failed to install mcporter (exa search may not work)", "error", err)
+		}
+	}
+
 	return &ContainerInfo{
 		ContainerID:   resp.ID,
 		ContainerName: containerName,
@@ -423,17 +432,34 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 	}
 
 	// Inject skills configuration
-	if extras != nil && len(extras.Skills) > 0 {
-		skillsSection := map[string]any{
-			"entries": extras.Skills,
+	{
+		var skillEntries map[string]map[string]any
+		var skillDirs []string
+		if extras != nil {
+			skillEntries = extras.Skills
+			skillDirs = extras.SkillDirs
 		}
-		if len(extras.SkillDirs) > 0 {
-			skillsSection["load"] = map[string]any{
-				"extraDirs": extras.SkillDirs,
-				"watch":     true,
+		// Enable mcporter built-in skill when exa_search is configured
+		if openclawCfg.ExaSearch != nil && openclawCfg.ExaSearch.Enabled && openclawCfg.ExaSearch.APIKey != "" {
+			if skillEntries == nil {
+				skillEntries = make(map[string]map[string]any)
+			}
+			skillEntries["mcporter"] = map[string]any{
+				"enabled": true,
 			}
 		}
-		cfgMap["skills"] = skillsSection
+		if len(skillEntries) > 0 {
+			skillsSection := map[string]any{
+				"entries": skillEntries,
+			}
+			if len(skillDirs) > 0 {
+				skillsSection["load"] = map[string]any{
+					"extraDirs": skillDirs,
+					"watch":     true,
+				}
+			}
+			cfgMap["skills"] = skillsSection
+		}
 	}
 
 	// Inject MCP server configuration
@@ -472,6 +498,51 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 		_ = os.WriteFile(userMDPath, []byte(userMD), 0644)
 	}
 
+	// Exa.ai search via mcporter: copy SKILL.md + write config/mcporter.json + TOOLS.md
+	if openclawCfg.ExaSearch != nil && openclawCfg.ExaSearch.Enabled && openclawCfg.ExaSearch.APIKey != "" {
+		// 1. Copy mcporter SKILL.md to ~/.openclaw/skills/mcporter/ so OpenClaw loads the skill
+		skillDir := filepath.Join(hostDir, "skills", "mcporter")
+		_ = os.MkdirAll(skillDir, 0755)
+		srcSkillMD := filepath.Join("data", "skills", "mcporter", "SKILL.md")
+		if skillMDBytes, err := os.ReadFile(srcSkillMD); err == nil {
+			_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), skillMDBytes, 0644)
+		} else {
+			logger.Warn("Failed to read mcporter SKILL.md source", "path", srcSkillMD, "error", err)
+		}
+
+		// 2. Write workspace/config/mcporter.json with exa MCP server config
+		workspaceDir := filepath.Join(hostDir, "workspace")
+		_ = os.MkdirAll(workspaceDir, 0755)
+		mcporterConfigDir := filepath.Join(workspaceDir, "config")
+		_ = os.MkdirAll(mcporterConfigDir, 0755)
+
+		mcporterCfg := map[string]any{
+			"mcpServers": map[string]any{
+				"exa": map[string]any{
+					"baseUrl": "https://mcp.exa.ai/mcp",
+					"headers": map[string]any{
+						"x-api-key": openclawCfg.ExaSearch.APIKey,
+					},
+				},
+			},
+			"imports": []any{},
+		}
+		mcporterBytes, err := json.MarshalIndent(mcporterCfg, "", "  ")
+		if err == nil {
+			mcporterPath := filepath.Join(mcporterConfigDir, "mcporter.json")
+			_ = os.WriteFile(mcporterPath, append(mcporterBytes, '\n'), 0644)
+		}
+
+		// 3. Write TOOLS.md to instruct agent to prefer exa search
+		toolsMD := "# Search Preferences\n\n" +
+			"搜索优先用 exa：`mcporter call exa.web_search_exa query=\"...\"` — 语义搜索\n" +
+			"当用户要求搜索或需要查找网络信息时，优先使用 exa 搜索而非内置搜索工具。\n"
+		toolsMDPath := filepath.Join(workspaceDir, "TOOLS.md")
+		_ = os.WriteFile(toolsMDPath, []byte(toolsMD), 0644)
+
+		logger.Debug("Exa search configured via mcporter", "container", containerName)
+	}
+
 	// Fix ownership for bind-mount: OpenClaw containers run as node (UID 1000).
 	// When the host user has a different UID (e.g. 1002), the node user inside
 	// the container cannot write to the mounted directory, causing EACCES errors.
@@ -507,6 +578,39 @@ func (m *Manager) ensureImage(ctx context.Context) error {
 // Close cleans up the Docker client.
 func (m *Manager) Close() error {
 	return m.cli.Close()
+}
+
+// InstallMcporter runs "npm i -g mcporter" inside the container via docker exec.
+// mcporter is required as a CLI binary for the mcporter skill to function.
+func (m *Manager) InstallMcporter(ctx context.Context, containerID string) error {
+	execCfg := container.ExecOptions{
+		Cmd:          []string{"npm", "i", "-g", "mcporter"},
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+	execResp, err := m.cli.ContainerExecCreate(ctx, containerID, execCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create exec for mcporter install: %w", err)
+	}
+	attachResp, err := m.cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to attach exec for mcporter install: %w", err)
+	}
+	defer attachResp.Close()
+	// Consume output to completion
+	_, _ = io.Copy(io.Discard, attachResp.Reader)
+
+	// Check exit code
+	inspectResp, err := m.cli.ContainerExecInspect(ctx, execResp.ID)
+	if err != nil {
+		return fmt.Errorf("failed to inspect exec for mcporter install: %w", err)
+	}
+	if inspectResp.ExitCode != 0 {
+		return fmt.Errorf("mcporter install exited with code %d", inspectResp.ExitCode)
+	}
+
+	logger.Info("mcporter installed in container", "container_id", containerID)
+	return nil
 }
 
 // buildBinds constructs the Binds list for container creation, including shared knowledge directory.
@@ -575,6 +679,14 @@ func (m *Manager) RegenerateConfig(
 	}
 	if err := m.cli.ContainerStart(ctx, containerID, container.StartOptions{}); err != nil {
 		return fmt.Errorf("failed to restart container: %w", err)
+	}
+
+	// Install mcporter binary if exa search is enabled (npm global packages don't survive restart)
+	if openclawCfg.ExaSearch != nil && openclawCfg.ExaSearch.Enabled && openclawCfg.ExaSearch.APIKey != "" {
+		time.Sleep(2 * time.Second)
+		if err := m.InstallMcporter(ctx, containerID); err != nil {
+			logger.Warn("Failed to install mcporter after regenerate", "error", err)
+		}
 	}
 
 	logger.Info("Container config regenerated and restarted", "container", containerName)

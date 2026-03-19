@@ -25,12 +25,19 @@ openclaw:
   # 支持 Brave、Gemini、Grok、Kimi、Perplexity 等搜索引擎
   # 下面以 Kimi 为例，API Key 从 https://platform.moonshot.cn 获取
   web_search:
-    enabled: true
+    enabled: false
     max_results: 5
     timeout_seconds: 30
     cache_ttl_minutes: 15
     kimi:
       api_key: "your-kimi-api-key"
+  # Exa.ai 语义搜索配置（可选，推荐）- 通过 mcporter MCP 服务实现
+  # API Key 从 https://exa.ai/ 控制台获取
+  # 启用后会自动在容器 workspace/config/mcporter.json 中配置 exa MCP 服务
+  # 并在 TOOLS.md 中引导 Agent 优先使用 exa 搜索
+  exa_search:
+    enabled: true
+    api_key: "your-exa-api-key"
 
 knowledge_base:
   host_dir: "./data/shared-knowledge"

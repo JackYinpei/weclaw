@@ -43,6 +43,13 @@ type OpenClawConfig struct {
 	ModelName    string           `mapstructure:"model_name"`
 	ToolsProfile string           `mapstructure:"tools_profile"`
 	WebSearch    *WebSearchConfig `mapstructure:"web_search"`
+	ExaSearch    *ExaSearchConfig `mapstructure:"exa_search"`
+}
+
+// ExaSearchConfig holds Exa.ai search configuration via mcporter MCP server.
+type ExaSearchConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	APIKey  string `mapstructure:"api_key"`
 }
 
 // WebSearchConfig holds web search tool configuration (tools.web.search in openclaw.json).

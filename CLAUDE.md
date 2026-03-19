@@ -79,7 +79,21 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 - **配置结构**: `WebSearchConfig` 包含 `enabled`（bool）、`max_results`、`timeout_seconds`、`cache_ttl_minutes` 顶层字段，以及嵌套的 `kimi.api_key`（对应 `tools.web.search.kimi.apiKey`）。`enabled` 为 false 或未配置时不注入。
 - **搜索引擎支持**: OpenClaw 支持 Brave、Gemini、Grok、Kimi、Perplexity 等搜索引擎，各引擎的 API Key 放在对应的嵌套配置中（如 `kimi.api_key`）。详见 `reference/web-search.md`。
 
-### 8. 共享知识库（宿主机目录 Bind Mount）
+### 8. Exa.ai 语义搜索（mcporter MCP 服务）
+- **配置位置**: `configs/config.yaml` 的 `openclaw.exa_search` 段。
+- **工作原理**: 通过 mcporter skill 连接 exa.ai 的 MCP 服务端点（`https://mcp.exa.ai/mcp`），实现语义搜索。mcporter 不是 OpenClaw 内置 skill，需要预存 SKILL.md 并在容器内安装 CLI 二进制。
+- **Skill 来源**: SKILL.md 预存在 `data/skills/mcporter/SKILL.md`（来自 ClawHub steipete/mcporter），创建容器时复制到 `~/.openclaw/skills/mcporter/SKILL.md`。
+- **配置注入**: `prepareOpenClawHostDir()` 在 `exa_search.enabled=true` 且 `api_key` 非空时：
+  1. 复制 `data/skills/mcporter/SKILL.md` 到 `skills/mcporter/SKILL.md`（使 OpenClaw 加载该 skill）
+  2. 在 `openclaw.json` 的 `skills.entries` 中启用 mcporter：`"mcporter": {"enabled": true}`
+  3. 创建 `workspace/config/mcporter.json`，配置 exa MCP 服务（baseUrl + x-api-key header）
+  4. 写入 `workspace/TOOLS.md`，引导 Agent 优先使用 `mcporter call exa.web_search_exa` 进行搜索
+- **二进制安装**: 容器启动后通过 `docker exec npm i -g mcporter` 安装 CLI。由于 `npm -g` 安装不持久化（容器 stop/start 时文件系统保留，但重建容器需重新安装），`CreateContainer` 和 `RegenerateConfig` 都会在启动后自动执行安装。
+- **配置结构**: `ExaSearchConfig` 包含 `enabled`（bool）和 `api_key`（string）。
+- **与 web_search 的关系**: exa_search 通过 MCP 服务实现，与内置 web_search（tools.web.search）独立。建议二选一，启用 exa 时可关闭内置 web_search。
+- **生效方式**: 新容器自动生效；已有容器需通过 `POST /api/containers/:id/apply` 触发重新生成配置。
+
+### 9. 共享知识库（宿主机目录 Bind Mount）
 - 系统启动时自动创建宿主机共享知识库目录（默认 `./data/shared-knowledge`）。
 - 所有用户容器以**读写**模式 Bind Mount 该目录到 `/home/node/shared-knowledge`。OpenClaw 可以读取并写入共享知识库。
 - 创建容器时自动写入 `USER.md` 到容器 workspace 目录（`~/.openclaw/workspace/USER.md`），告知 agent 共享知识库路径。
@@ -87,7 +101,7 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 - 配置项在 `configs/config.yaml` 的 `knowledge_base` 段。
 - Web 侧边栏展示共享知识库文件树，支持点击查看文本文件内容。
 
-### 9. OpenClaw 系统提示词注入机制
+### 10. OpenClaw 系统提示词注入机制
 - OpenClaw 通过 **workspace 目录**（`~/.openclaw/workspace/`）下的约定文件自动注入系统提示词，**不是** `~/.openclaw/` 根目录：
   - `SOUL.md` — 核心身份和行为特征（仅主 agent）
   - `AGENTS.md` — 操作指令和持久化记忆（所有 agent，由 OpenClaw bootstrap 自动生成，不要覆盖）
@@ -96,7 +110,7 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
   - `MEMORY.md` — 长期记忆
   - `BOOTSTRAP.md` — 首次启动配置（运行后自删除）
 
-### 10. 多会话与 Switch Bar（聊天页标签栏）
+### 11. 多会话与 Switch Bar（聊天页标签栏）
 - **Switch Bar** 位于聊天页 `chat-header` 下方，统一管理私聊 Session 和群聊 Room 的切换。
 - **多 Session 支持**: 每个容器连接下可创建多个独立会话标签（Chat 1, Chat 2...），每个 session 拥有独立的 `lastResponseID`，通过 WebSocket `send_message` 中的 `session_tag` 字段区分。
 - **后端 `lastResponseIDs`**: `wsConn.lastResponseIDs` 是 `map[string]string`（key 为 `session_tag`），支持同一个 WebSocket 连接上的多会话隔离。前端发送 `session_tag: "session-<id>"`，后端据此存取不同的 `lastResponseID`。
@@ -104,7 +118,7 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 - **统一消息区**: `messagesArea` 和 `messageInput` 在 Session 和 Room 之间共享复用，切换 Session 时保存/恢复 HTML 快照，切换 Room 时从 API 重新加载。
 - **Dashboard 无 Group Chats 区域**: 群聊入口已全部移到 Switch Bar 的 `+ Room` / `Join` 按钮中。
 
-### 11. 群聊邀请用户
+### 12. 群聊邀请用户
 - **API**: `POST /api/rooms/:roomId/invite` body: `{ "username": "xxx" }`
 - **流程**: 验证调用者是房间成员 → 通过 `FindByUsername` 查找目标用户 → 通过 `GetFirstActiveByAccount` 获取其第一个容器 → `JoinRoom` 添加成员 → 广播 `member_list` 更新。
 - **前端入口**: 房间成员栏末尾的 "+ Invite" 按钮，弹出模态框输入用户名。
