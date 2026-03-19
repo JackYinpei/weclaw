@@ -43,13 +43,16 @@ type OpenClawConfig struct {
 	ModelName    string           `mapstructure:"model_name"`
 	ToolsProfile string           `mapstructure:"tools_profile"`
 	WebSearch    *WebSearchConfig `mapstructure:"web_search"`
-	ExaSearch    *ExaSearchConfig `mapstructure:"exa_search"`
+	McpSearch    *McpSearchConfig `mapstructure:"mcp_search"`
 }
 
-// ExaSearchConfig holds Exa.ai search configuration via mcporter MCP server.
-type ExaSearchConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	APIKey  string `mapstructure:"api_key"`
+// McpSearchConfig holds MCP-based search configuration via mcporter.
+// Default provider is Aliyun DashScope WebSearch.
+type McpSearchConfig struct {
+	Enabled    bool   `mapstructure:"enabled"`
+	APIKey     string `mapstructure:"api_key"`
+	ServerName string `mapstructure:"server_name"` // default: "WebSearch"
+	BaseURL    string `mapstructure:"base_url"`    // default: aliyun dashscope
 }
 
 // WebSearchConfig holds web search tool configuration (tools.web.search in openclaw.json).

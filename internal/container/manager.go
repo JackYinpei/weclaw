@@ -253,12 +253,12 @@ func (m *Manager) CreateContainer(ctx context.Context, userOpenID string, opencl
 		"user", userOpenID,
 	)
 
-	// Install mcporter binary if exa search is enabled
-	if openclawCfg.ExaSearch != nil && openclawCfg.ExaSearch.Enabled && openclawCfg.ExaSearch.APIKey != "" {
+	// Install mcporter binary if mcp search is enabled
+	if openclawCfg.McpSearch != nil && openclawCfg.McpSearch.Enabled && openclawCfg.McpSearch.APIKey != "" {
 		// Give container a moment to initialize before exec
 		time.Sleep(2 * time.Second)
 		if err := m.InstallMcporter(ctx, resp.ID); err != nil {
-			logger.Warn("Failed to install mcporter (exa search may not work)", "error", err)
+			logger.Warn("Failed to install mcporter (mcp search may not work)", "error", err)
 		}
 	}
 
@@ -439,8 +439,8 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 			skillEntries = extras.Skills
 			skillDirs = extras.SkillDirs
 		}
-		// Enable mcporter built-in skill when exa_search is configured
-		if openclawCfg.ExaSearch != nil && openclawCfg.ExaSearch.Enabled && openclawCfg.ExaSearch.APIKey != "" {
+		// Enable mcporter skill when mcp_search is configured
+		if openclawCfg.McpSearch != nil && openclawCfg.McpSearch.Enabled && openclawCfg.McpSearch.APIKey != "" {
 			if skillEntries == nil {
 				skillEntries = make(map[string]map[string]any)
 			}
@@ -498,30 +498,28 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 		_ = os.WriteFile(userMDPath, []byte(userMD), 0644)
 	}
 
-	// Exa.ai search via mcporter: copy SKILL.md + write config/mcporter.json + TOOLS.md
-	if openclawCfg.ExaSearch != nil && openclawCfg.ExaSearch.Enabled && openclawCfg.ExaSearch.APIKey != "" {
-		// 1. Copy mcporter SKILL.md to ~/.openclaw/skills/mcporter/ so OpenClaw loads the skill
-		skillDir := filepath.Join(hostDir, "skills", "mcporter")
-		_ = os.MkdirAll(skillDir, 0755)
-		srcSkillMD := filepath.Join("data", "skills", "mcporter", "SKILL.md")
-		if skillMDBytes, err := os.ReadFile(srcSkillMD); err == nil {
-			_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), skillMDBytes, 0644)
-		} else {
-			logger.Warn("Failed to read mcporter SKILL.md source", "path", srcSkillMD, "error", err)
+	// MCP search via mcporter: copy SKILL.md + write ~/.mcporter/mcporter.json + TOOLS.md
+	if openclawCfg.McpSearch != nil && openclawCfg.McpSearch.Enabled && openclawCfg.McpSearch.APIKey != "" {
+		// Resolve server name and base URL with defaults (Aliyun DashScope WebSearch)
+		serverName := openclawCfg.McpSearch.ServerName
+		if serverName == "" {
+			serverName = "WebSearch"
+		}
+		baseURL := openclawCfg.McpSearch.BaseURL
+		if baseURL == "" {
+			baseURL = "https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp"
 		}
 
-		// 2. Write workspace/config/mcporter.json with exa MCP server config
-		workspaceDir := filepath.Join(hostDir, "workspace")
-		_ = os.MkdirAll(workspaceDir, 0755)
-		mcporterConfigDir := filepath.Join(workspaceDir, "config")
-		_ = os.MkdirAll(mcporterConfigDir, 0755)
+		// 1. Write ~/.mcporter/mcporter.json (bind-mounted from host)
+		mcporterHostDir := hostDir + "-mcporter"
+		_ = os.MkdirAll(mcporterHostDir, 0755)
 
 		mcporterCfg := map[string]any{
 			"mcpServers": map[string]any{
-				"exa": map[string]any{
-					"baseUrl": "https://mcp.exa.ai/mcp",
+				serverName: map[string]any{
+					"baseUrl": baseURL,
 					"headers": map[string]any{
-						"x-api-key": openclawCfg.ExaSearch.APIKey,
+						"Authorization": "Bearer " + openclawCfg.McpSearch.APIKey,
 					},
 				},
 			},
@@ -529,18 +527,27 @@ func (m *Manager) prepareOpenClawHostDir(containerName string, gatewayToken stri
 		}
 		mcporterBytes, err := json.MarshalIndent(mcporterCfg, "", "  ")
 		if err == nil {
-			mcporterPath := filepath.Join(mcporterConfigDir, "mcporter.json")
+			mcporterPath := filepath.Join(mcporterHostDir, "mcporter.json")
 			_ = os.WriteFile(mcporterPath, append(mcporterBytes, '\n'), 0644)
 		}
+		// chown mcporter dir for container node user
+		absMcporterDir, _ := filepath.Abs(mcporterHostDir)
+		if absMcporterDir != "" {
+			_ = chownRecursive(absMcporterDir, 1000, 1000)
+		}
 
-		// 3. Write TOOLS.md to instruct agent to prefer exa search
-		toolsMD := "# Search Preferences\n\n" +
-			"搜索优先用 exa：`mcporter call exa.web_search_exa query=\"...\"` — 语义搜索\n" +
-			"当用户要求搜索或需要查找网络信息时，优先使用 exa 搜索而非内置搜索工具。\n"
+		// 2. Write TOOLS.md with search preferences
+		workspaceDir := filepath.Join(hostDir, "workspace")
+		_ = os.MkdirAll(workspaceDir, 0755)
+		toolsMD := fmt.Sprintf("## Preferences\n\n"+
+			"- **不用 Brave Search** — 需要绑信用卡，我不想用\n"+
+			"- **搜索优先用 %s**：`mcporter call %s.web_search query=\"...\"` — 联网搜索\n"+
+			"- **web_fetch 只用于读取已知URL** — 不要用它去抓搜索引擎页面\n",
+			serverName, serverName)
 		toolsMDPath := filepath.Join(workspaceDir, "TOOLS.md")
 		_ = os.WriteFile(toolsMDPath, []byte(toolsMD), 0644)
 
-		logger.Debug("Exa search configured via mcporter", "container", containerName)
+		logger.Debug("MCP search configured via mcporter", "container", containerName, "server", serverName)
 	}
 
 	// Fix ownership for bind-mount: OpenClaw containers run as node (UID 1000).
@@ -584,7 +591,8 @@ func (m *Manager) Close() error {
 // mcporter is required as a CLI binary for the mcporter skill to function.
 func (m *Manager) InstallMcporter(ctx context.Context, containerID string) error {
 	execCfg := container.ExecOptions{
-		Cmd:          []string{"npm", "i", "-g", "mcporter"},
+		User:         "root",
+		Cmd:          []string{"npm", "i", "-g", "mcporter", "--registry", "https://registry.npmmirror.com"},
 		AttachStdout: true,
 		AttachStderr: true,
 	}
@@ -613,9 +621,15 @@ func (m *Manager) InstallMcporter(ctx context.Context, containerID string) error
 	return nil
 }
 
-// buildBinds constructs the Binds list for container creation, including shared knowledge directory.
+// buildBinds constructs the Binds list for container creation, including shared knowledge and mcporter config.
 func (m *Manager) buildBinds(hostOpenClawDir string) []string {
 	binds := []string{hostOpenClawDir + ":/home/node/.openclaw"}
+	// Always mount .mcporter dir so mcp_search config persists (harmless if empty)
+	mcporterDir := hostOpenClawDir + "-mcporter"
+	_ = os.MkdirAll(mcporterDir, 0755)
+	if absMcporterDir, err := filepath.Abs(mcporterDir); err == nil {
+		binds = append(binds, absMcporterDir+":/home/node/.mcporter")
+	}
 	if m.kbCfg != nil && m.kbCfg.HostDir != "" {
 		absKBDir, err := filepath.Abs(m.kbCfg.HostDir)
 		if err == nil {
@@ -681,8 +695,8 @@ func (m *Manager) RegenerateConfig(
 		return fmt.Errorf("failed to restart container: %w", err)
 	}
 
-	// Install mcporter binary if exa search is enabled (npm global packages don't survive restart)
-	if openclawCfg.ExaSearch != nil && openclawCfg.ExaSearch.Enabled && openclawCfg.ExaSearch.APIKey != "" {
+	// Install mcporter binary if mcp search is enabled (npm global packages don't survive restart)
+	if openclawCfg.McpSearch != nil && openclawCfg.McpSearch.Enabled && openclawCfg.McpSearch.APIKey != "" {
 		time.Sleep(2 * time.Second)
 		if err := m.InstallMcporter(ctx, containerID); err != nil {
 			logger.Warn("Failed to install mcporter after regenerate", "error", err)

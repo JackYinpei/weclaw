@@ -31,13 +31,15 @@ openclaw:
     cache_ttl_minutes: 15
     kimi:
       api_key: "your-kimi-api-key"
-  # Exa.ai 语义搜索配置（可选，推荐）- 通过 mcporter MCP 服务实现
-  # API Key 从 https://exa.ai/ 控制台获取
-  # 启用后会自动在容器 workspace/config/mcporter.json 中配置 exa MCP 服务
-  # 并在 TOOLS.md 中引导 Agent 优先使用 exa 搜索
-  exa_search:
+  # MCP 联网搜索配置（推荐）- 通过 mcporter + 阿里云百炼 WebSearch MCP 实现
+  # API Key 从阿里云百炼控制台获取
+  # 启用后自动：1) 安装 mcporter CLI  2) 写入 ~/.mcporter/mcporter.json  3) 启用 mcporter skill
+  # server_name 和 base_url 有默认值（阿里云 WebSearch），一般只需配置 api_key
+  mcp_search:
     enabled: true
-    api_key: "your-exa-api-key"
+    api_key: "sk-your-dashscope-api-key"
+    # server_name: "WebSearch"  # 默认 WebSearch
+    # base_url: "https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp"  # 默认阿里云
 
 knowledge_base:
   host_dir: "./data/shared-knowledge"

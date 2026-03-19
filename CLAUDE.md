@@ -79,18 +79,17 @@ WeClaw 是一个 Golang 后端服务，提供 Web 端多容器管理平台，让
 - **配置结构**: `WebSearchConfig` 包含 `enabled`（bool）、`max_results`、`timeout_seconds`、`cache_ttl_minutes` 顶层字段，以及嵌套的 `kimi.api_key`（对应 `tools.web.search.kimi.apiKey`）。`enabled` 为 false 或未配置时不注入。
 - **搜索引擎支持**: OpenClaw 支持 Brave、Gemini、Grok、Kimi、Perplexity 等搜索引擎，各引擎的 API Key 放在对应的嵌套配置中（如 `kimi.api_key`）。详见 `reference/web-search.md`。
 
-### 8. Exa.ai 语义搜索（mcporter MCP 服务）
-- **配置位置**: `configs/config.yaml` 的 `openclaw.exa_search` 段。
-- **工作原理**: 通过 mcporter skill 连接 exa.ai 的 MCP 服务端点（`https://mcp.exa.ai/mcp`），实现语义搜索。mcporter 不是 OpenClaw 内置 skill，需要预存 SKILL.md 并在容器内安装 CLI 二进制。
-- **Skill 来源**: SKILL.md 预存在 `data/skills/mcporter/SKILL.md`（来自 ClawHub steipete/mcporter），创建容器时复制到 `~/.openclaw/skills/mcporter/SKILL.md`。
-- **配置注入**: `prepareOpenClawHostDir()` 在 `exa_search.enabled=true` 且 `api_key` 非空时：
-  1. 复制 `data/skills/mcporter/SKILL.md` 到 `skills/mcporter/SKILL.md`（使 OpenClaw 加载该 skill）
-  2. 在 `openclaw.json` 的 `skills.entries` 中启用 mcporter：`"mcporter": {"enabled": true}`
-  3. 创建 `workspace/config/mcporter.json`，配置 exa MCP 服务（baseUrl + x-api-key header）
-  4. 写入 `workspace/TOOLS.md`，引导 Agent 优先使用 `mcporter call exa.web_search_exa` 进行搜索
-- **二进制安装**: 容器启动后通过 `docker exec npm i -g mcporter` 安装 CLI。由于 `npm -g` 安装不持久化（容器 stop/start 时文件系统保留，但重建容器需重新安装），`CreateContainer` 和 `RegenerateConfig` 都会在启动后自动执行安装。
-- **配置结构**: `ExaSearchConfig` 包含 `enabled`（bool）和 `api_key`（string）。
-- **与 web_search 的关系**: exa_search 通过 MCP 服务实现，与内置 web_search（tools.web.search）独立。建议二选一，启用 exa 时可关闭内置 web_search。
+### 8. MCP 联网搜索（mcporter + 阿里云百炼 WebSearch）
+- **配置位置**: `configs/config.yaml` 的 `openclaw.mcp_search` 段。
+- **工作原理**: 通过 mcporter skill 连接阿里云百炼 WebSearch MCP 服务端点，实现联网搜索。mcporter 是 OpenClaw 内置 skill（通过 `skills.entries.mcporter.enabled: true` 启用），但 CLI 二进制需要手动安装（中国大陆网络环境无法使用 OpenClaw 一键安装）。
+- **配置注入**: `prepareOpenClawHostDir()` 在 `mcp_search.enabled=true` 且 `api_key` 非空时：
+  1. 在 `openclaw.json` 的 `skills.entries` 中启用 mcporter：`"mcporter": {"enabled": true}`
+  2. 创建宿主机 `{containerDir}-mcporter/mcporter.json`，bind mount 到容器 `/home/node/.mcporter/mcporter.json`（mcporter `--scope home` 的默认读取路径）
+  3. 写入 `workspace/TOOLS.md`，引导 Agent 优先使用 `mcporter call WebSearch.web_search` 进行搜索
+- **Bind Mount**: `buildBinds()` 始终挂载 `{containerDir}-mcporter` → `/home/node/.mcporter`，即使 mcp_search 未启用也挂载（空目录无害），确保后续 apply changes 能生效。
+- **二进制安装**: 容器启动后通过 `docker exec -u root npm i -g mcporter --registry https://registry.npmmirror.com` 安装 CLI。`CreateContainer` 和 `RegenerateConfig` 都会在启动后自动执行安装。
+- **配置结构**: `McpSearchConfig` 包含 `enabled`（bool）、`api_key`（string）、`server_name`（默认 "WebSearch"）、`base_url`（默认阿里云百炼 URL）。
+- **与 web_search 的关系**: mcp_search 通过 MCP 服务实现，与内置 web_search（tools.web.search）独立。建议二选一，启用 mcp_search 时可关闭内置 web_search。
 - **生效方式**: 新容器自动生效；已有容器需通过 `POST /api/containers/:id/apply` 触发重新生成配置。
 
 ### 9. 共享知识库（宿主机目录 Bind Mount）
