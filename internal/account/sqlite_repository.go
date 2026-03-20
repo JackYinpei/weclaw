@@ -43,3 +43,9 @@ func (r *sqliteRepository) FindByID(ctx context.Context, id uint) (*Account, err
 	}
 	return &acc, nil
 }
+
+func (r *sqliteRepository) ListAll(ctx context.Context) ([]Account, error) {
+	var accounts []Account
+	err := r.db.WithContext(ctx).Order("username ASC").Find(&accounts).Error
+	return accounts, err
+}

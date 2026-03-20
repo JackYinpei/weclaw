@@ -91,7 +91,7 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("docker.max_containers", 20)
 	v.SetDefault("docker.port_range_start", 9001)
 	v.SetDefault("docker.port_range_end", 9100)
-	v.SetDefault("docker.idle_timeout_minutes", 30)
+	v.SetDefault("docker.idle_timeout_minutes", 120)
 	v.SetDefault("docker.memory_limit", "2g")
 	v.SetDefault("docker.cpu_limit", "1.0")
 	v.SetDefault("docker.network_name", "weclaw-net")

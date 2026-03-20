@@ -287,6 +287,29 @@ func (api *ContainerAPI) InviteToRoom(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "invited", "member": member})
 }
 
+// ListUsers returns all registered users (for invite user list).
+func (api *ContainerAPI) ListUsers(c *gin.Context) {
+	accounts, err := api.accountRepo.ListAll(context.Background())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	type userInfo struct {
+		ID       uint   `json:"id"`
+		Username string `json:"username"`
+	}
+
+	var users []userInfo
+	for _, acc := range accounts {
+		users = append(users, userInfo{
+			ID:       acc.ID,
+			Username: acc.Username,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"users": users})
+}
+
 // --- Helpers ---
 
 func parseRoomID(c *gin.Context) (uint, error) {

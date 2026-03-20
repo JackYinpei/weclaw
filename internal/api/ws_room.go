@@ -478,11 +478,19 @@ func (api *ContainerAPI) broadcastMemberList(roomID uint) {
 
 	var infos []roomMemberInfo
 	for _, m := range members {
+		username := api.getUsernameByID(m.AccountID)
 		ctr, err := api.containerService.GetByIDNoOwnerCheck(m.ContainerID)
 		if err != nil {
+			// Still include the member even if container is not found (e.g., soft-deleted)
+			infos = append(infos, roomMemberInfo{
+				AccountID:     m.AccountID,
+				Username:      username,
+				ContainerID:   m.ContainerID,
+				ContainerName: "(offline)",
+				AllowMention:  false,
+			})
 			continue
 		}
-		username := api.getUsernameByID(m.AccountID)
 		ctrName := ctr.DisplayName
 		if ctrName == "" {
 			ctrName = fmt.Sprintf("Agent-%d", ctr.ID)

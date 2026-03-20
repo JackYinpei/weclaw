@@ -670,7 +670,7 @@
             <h3>Join Group Chat</h3>
             <div class="field">
                 <label>Room ID</label>
-                <input type="number" id="joinRoomId" placeholder="Enter room ID">
+                <input type="text" id="joinRoomId" inputmode="numeric" placeholder="Enter room ID">
             </div>
             <div class="field">
                 <label>Select Your Agent</label>
@@ -687,14 +687,10 @@
     <div class="modal-overlay hidden" id="inviteModal">
         <div class="modal">
             <h3>Invite User to Room</h3>
-            <div class="field">
-                <label>Username</label>
-                <input type="text" id="inviteUsername" placeholder="Enter username">
-            </div>
+            <div id="inviteUserList" style="max-height:300px;overflow-y:auto;margin-bottom:0.5rem"></div>
             <div id="inviteError" style="color:var(--danger-color);font-size:0.8rem;min-height:1.2em;margin-bottom:0.5rem"></div>
             <div class="modal-actions">
                 <button class="modal-cancel" onclick="closeInviteModal()">Cancel</button>
-                <button class="modal-confirm" onclick="inviteUser()">Invite</button>
             </div>
         </div>
     </div>
@@ -2062,18 +2058,40 @@
         }
 
         // --- Invite ---
-        function openInviteModal() {
+        async function openInviteModal() {
             document.getElementById('inviteModal').classList.remove('hidden');
-            document.getElementById('inviteUsername').value = '';
             document.getElementById('inviteError').textContent = '';
-            document.getElementById('inviteUsername').focus();
+            const listEl = document.getElementById('inviteUserList');
+            listEl.innerHTML = '<div style="color:var(--text-secondary);padding:0.5rem">Loading...</div>';
+
+            try {
+                const res = await fetch('/api/users', { headers: authHeaders() });
+                const data = await res.json();
+                if (!res.ok) { listEl.innerHTML = '<div style="color:var(--danger-color)">Failed to load users</div>'; return; }
+
+                const memberUsernames = new Set(roomMembers.map(m => m.username));
+                const available = (data.users || []).filter(u => !memberUsernames.has(u.username));
+
+                if (available.length === 0) {
+                    listEl.innerHTML = '<div style="color:var(--text-secondary);padding:0.5rem">No users available to invite</div>';
+                    return;
+                }
+
+                listEl.innerHTML = available.map(u =>
+                    `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.75rem;border-bottom:1px solid var(--border-color)">
+                        <span>${esc(u.username)}</span>
+                        <button class="modal-confirm" style="padding:0.25rem 0.75rem;font-size:0.8rem" onclick="inviteUser('${esc(u.username)}')">Invite</button>
+                    </div>`
+                ).join('');
+            } catch (e) {
+                listEl.innerHTML = '<div style="color:var(--danger-color)">Network error</div>';
+            }
         }
         function closeInviteModal() { document.getElementById('inviteModal').classList.add('hidden'); }
 
-        async function inviteUser() {
-            const username = document.getElementById('inviteUsername').value.trim();
+        async function inviteUser(username) {
             const errorEl = document.getElementById('inviteError');
-            if (!username) { errorEl.textContent = 'Please enter a username'; return; }
+            if (!username) { errorEl.textContent = 'No username'; return; }
             if (!activeRoom) { errorEl.textContent = 'No active room'; return; }
 
             try {

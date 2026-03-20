@@ -32,6 +32,7 @@ type ContainerAPI struct {
 	accountRepo interface {
 		FindByID(ctx context.Context, id uint) (*account.Account, error)
 		FindByUsername(ctx context.Context, username string) (*account.Account, error)
+		ListAll(ctx context.Context) ([]account.Account, error)
 	}
 }
 
@@ -46,6 +47,7 @@ func NewContainerAPI(
 	accountRepo interface {
 		FindByID(ctx context.Context, id uint) (*account.Account, error)
 		FindByUsername(ctx context.Context, username string) (*account.Account, error)
+		ListAll(ctx context.Context) ([]account.Account, error)
 	},
 ) *ContainerAPI {
 	return &ContainerAPI{
@@ -132,6 +134,9 @@ func (api *ContainerAPI) RegisterRoutes(r *gin.Engine) {
 		rooms.GET("/:roomId/members", api.GetRoomMembers)
 		rooms.GET("/:roomId/messages", api.GetRoomMessages)
 	}
+
+	// Users list (for invite)
+	r.GET("/api/users", AuthMiddleware(), api.ListUsers)
 }
 
 // --- Helpers ---
