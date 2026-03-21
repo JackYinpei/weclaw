@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -303,36 +306,60 @@ func (rc *roomConn) dispatchMentions(message string) {
 		container *container.Container
 	}
 
-	// Load all member containers to match @mentions
-	var targets []agentTarget
+	// Load all member containers and resolve agent names
+	type candidateInfo struct {
+		member    groupchat.ChatRoomMember
+		container *container.Container
+		agentName string
+	}
+	var candidates []candidateInfo
 	for _, m := range members {
-		// Use GetByIDNoOwnerCheck since we need cross-account container lookup
 		ctr, err := rc.api.containerService.GetByIDNoOwnerCheck(m.ContainerID)
 		if err != nil {
 			continue
 		}
-
-		// Check if this agent name is mentioned
 		agentName := ctr.DisplayName
 		if agentName == "" {
 			agentName = fmt.Sprintf("Agent-%d", ctr.ID)
 		}
+		candidates = append(candidates, candidateInfo{member: m, container: ctr, agentName: agentName})
+	}
 
-		mention := "@" + agentName
-		if !strings.Contains(message, mention) {
+	// Sort candidates by agent name length descending so that longer names
+	// are matched first (e.g. "haojiahuo1" before "haojiahuo"),
+	// preventing prefix collisions.
+	sort.Slice(candidates, func(i, j int) bool {
+		return len(candidates[i].agentName) > len(candidates[j].agentName)
+	})
+
+	// Match @mentions with word boundary check
+	var targets []agentTarget
+	for _, c := range candidates {
+		mention := "@" + c.agentName
+		idx := strings.Index(message, mention)
+		if idx < 0 {
 			continue
+		}
+		// Word boundary check: the character right after the mention must NOT
+		// be a letter, digit, underscore, or hyphen (i.e. not part of a longer name).
+		afterIdx := idx + len(mention)
+		if afterIdx < len(message) {
+			nextRune, _ := utf8.DecodeRuneInString(message[afterIdx:])
+			if unicode.IsLetter(nextRune) || unicode.IsDigit(nextRune) || nextRune == '_' || nextRune == '-' {
+				continue
+			}
 		}
 
 		// Permission check: if not owner, check AllowMention
-		if m.AccountID != rc.accountID && !ctr.AllowMention {
+		if c.member.AccountID != rc.accountID && !c.container.AllowMention {
 			rc.sendJSON(roomWSOutgoing{
 				Type:  "error",
-				Error: fmt.Sprintf("%s does not allow mentions from other users", agentName),
+				Error: fmt.Sprintf("%s does not allow mentions from other users", c.agentName),
 			})
 			continue
 		}
 
-		targets = append(targets, agentTarget{member: m, container: ctr})
+		targets = append(targets, agentTarget{member: c.member, container: c.container})
 	}
 
 	// Dispatch to each mentioned agent

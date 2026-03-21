@@ -773,11 +773,16 @@
         // --- Room State ---
         let rooms = [];
         let activeRoom = null;
-        let roomWs = null;
-        let roomWsReconnectTimer = null;
-        let roomWsReconnectDelay = 1000;
-        let roomMembers = [];
+        // Persistent WS connections for all joined rooms: roomId -> { ws, reconnectTimer, reconnectDelay }
+        let roomWsMap = new Map();
+        // Per-room members: roomId -> [memberInfo]
+        let roomMembersMap = new Map();
+        // Per-room message buffers for non-active rooms: roomId -> [html strings]
+        let roomMsgBuffers = new Map();
+        // Per-room streaming state: request_id -> accumulated text
         let roomStreamingTexts = {};
+        // Convenience getter for active room's members
+        let roomMembers = [];
         let mentionActiveIdx = 0;
         let mentionFiltered = [];
 
@@ -846,6 +851,8 @@
         }
 
         function logout() {
+            closeAllRoomWebSockets();
+            closeWebSocket();
             token = null;
             currentUser = null;
             localStorage.removeItem('weclaw_token');
@@ -999,8 +1006,9 @@
             activeRoom = null;
             document.getElementById('roomMembersBar').classList.add('hidden');
 
-            // Load rooms for switch bar
+            // Load rooms for switch bar, then open persistent WS connections for all rooms
             await loadRooms();
+            openAllRoomWebSockets();
             renderSessionBar();
 
             // Load messages
@@ -1017,7 +1025,7 @@
             activeTabRoomId = null;
             sessions = [];
             closeWebSocket();
-            closeRoomWebSocket();
+            closeAllRoomWebSockets();
             document.getElementById('dashboardView').style.display = '';
             document.getElementById('chatView').classList.add('hidden');
             document.getElementById('sidebar').classList.add('collapsed');
@@ -1165,8 +1173,9 @@
 
             if (activeTabType === 'room') {
                 // Send via room WebSocket
-                if (!activeRoom || !roomWs || roomWs.readyState !== WebSocket.OPEN) return;
-                roomWs.send(JSON.stringify({ type: 'send_message', message: msg }));
+                const rws = getRoomWs(activeTabRoomId);
+                if (!activeRoom || !rws) return;
+                rws.send(JSON.stringify({ type: 'send_message', message: msg }));
                 return;
             }
 
@@ -1762,7 +1771,12 @@
                     body: JSON.stringify({ name, container_id: containerId })
                 });
                 if (res.ok) {
+                    const oldRoomIds = new Set(rooms.map(r => r.id));
                     await loadRooms();
+                    // Open WS for newly created room
+                    for (const r of rooms) {
+                        if (!oldRoomIds.has(r.id)) openRoomWebSocket(r.id);
+                    }
                     renderSessionBar();
                 }
             } catch (e) {}
@@ -1780,6 +1794,7 @@
                 });
                 if (res.ok) {
                     await loadRooms();
+                    openRoomWebSocket(roomId);
                     renderSessionBar();
                 }
             } catch (e) {}
@@ -1789,6 +1804,7 @@
             if (!confirm('Delete this room?')) return;
             try {
                 await fetch(`/api/rooms/${roomId}`, { method: 'DELETE', headers: authHeaders() });
+                closeRoomWebSocket(roomId);
                 // If we're viewing this room, switch back to session
                 if (activeTabType === 'room' && activeTabRoomId === roomId) {
                     switchToSession(0);
@@ -1841,8 +1857,7 @@
             activeTabRoomId = null;
             activeRoom = null;
 
-            // Update UI
-            closeRoomWebSocket();
+            // Update UI (room WS connections stay open)
             document.getElementById('roomMembersBar').classList.add('hidden');
             document.getElementById('messagesArea').innerHTML = newSession.html;
             document.getElementById('messageInput').placeholder = 'Type a message... (/ for commands)';
@@ -1873,10 +1888,7 @@
             // Save current state
             saveCurrentState();
 
-            // Close room WS if switching from room
-            if (activeTabType === 'room') {
-                closeRoomWebSocket();
-            }
+            // Room WS connections stay open (persistent subscriptions)
 
             activeSessionIdx = idx;
             activeTabType = 'session';
@@ -1914,6 +1926,9 @@
             activeTabRoomId = roomId;
             activeRoom = room;
 
+            // Set active room's members
+            roomMembers = roomMembersMap.get(roomId) || [];
+
             // Show room UI
             document.getElementById('roomMembersBar').classList.remove('hidden');
             document.getElementById('messageInput').placeholder = 'Type a message... (@ to mention an agent)';
@@ -1921,11 +1936,28 @@
             document.getElementById('sendBtn').innerHTML = 'Send';
             hideSlashPopup();
 
-            // Load room messages
+            // Load room messages from API, then append any buffered messages
             await loadRoomMessages(roomId);
+            flushRoomBuffer(roomId);
+
+            // Ensure WS connection exists (should already be open from openAllRoomWebSockets)
             openRoomWebSocket(roomId);
 
             renderSessionBar();
+            renderRoomMembersBar();
+        }
+
+        function flushRoomBuffer(roomId) {
+            const buffer = roomMsgBuffers.get(roomId);
+            if (!buffer || buffer.length === 0) return;
+            const area = document.getElementById('messagesArea');
+            // Note: some buffered messages may already be in the API response.
+            // Since loadRoomMessages fetches persisted messages and the buffer contains
+            // real-time messages that were also persisted, we clear the buffer
+            // (the API load already has them). Only truly un-persisted messages
+            // (streaming in progress when we switched) need appending, but those
+            // complete via room_stream_done which persists. So just clear.
+            roomMsgBuffers.delete(roomId);
         }
 
         async function loadRoomMessages(roomId) {
@@ -1958,47 +1990,135 @@
             </div>`;
         }
 
-        // --- Room WebSocket ---
+        // --- Room WebSocket (Persistent Pub/Sub Architecture) ---
+        // Each joined room maintains a persistent WS connection so ALL members
+        // receive broadcasts (streaming, messages) in real-time, even when not
+        // actively viewing the room.
+
+        function openAllRoomWebSockets() {
+            for (const room of rooms) {
+                openRoomWebSocket(room.id);
+            }
+        }
+
+        function closeAllRoomWebSockets() {
+            for (const [roomId, state] of roomWsMap) {
+                if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+                if (state.ws) { state.ws.onclose = null; state.ws.close(); }
+            }
+            roomWsMap.clear();
+            roomMembersMap.clear();
+            roomMsgBuffers.clear();
+        }
+
         function openRoomWebSocket(roomId) {
-            closeRoomWebSocket();
+            // Don't open duplicate connections
+            const existing = roomWsMap.get(roomId);
+            if (existing && existing.ws && existing.ws.readyState <= WebSocket.OPEN) return;
+
             const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
             const url = `${proto}//${location.host}/ws/rooms/${roomId}?token=${encodeURIComponent(token)}`;
-            roomWs = new WebSocket(url);
-            roomWs.onopen = function() { roomWsReconnectDelay = 1000; };
-            roomWs.onmessage = function(e) {
-                try { handleRoomWSMessage(JSON.parse(e.data)); } catch(err) {}
+            const ws = new WebSocket(url);
+            const state = { ws, reconnectTimer: null, reconnectDelay: 1000 };
+            roomWsMap.set(roomId, state);
+
+            ws.onopen = function() { state.reconnectDelay = 1000; };
+            ws.onmessage = function(e) {
+                try { handleRoomWSMessage(roomId, JSON.parse(e.data)); } catch(err) {}
             };
-            roomWs.onclose = function() {
-                roomWs = null;
-                if (activeRoom && activeRoom.id === roomId) {
-                    roomWsReconnectTimer = setTimeout(() => {
-                        roomWsReconnectTimer = null;
-                        if (activeRoom && activeRoom.id === roomId) openRoomWebSocket(roomId);
-                    }, roomWsReconnectDelay);
-                    roomWsReconnectDelay = Math.min(roomWsReconnectDelay * 2, 30000);
+            ws.onclose = function() {
+                state.ws = null;
+                // Reconnect as long as this room is still in our room list
+                if (rooms.find(r => r.id === roomId)) {
+                    state.reconnectTimer = setTimeout(() => {
+                        state.reconnectTimer = null;
+                        if (rooms.find(r => r.id === roomId)) openRoomWebSocket(roomId);
+                    }, state.reconnectDelay);
+                    state.reconnectDelay = Math.min(state.reconnectDelay * 2, 30000);
+                } else {
+                    roomWsMap.delete(roomId);
                 }
             };
-            roomWs.onerror = function() {};
+            ws.onerror = function() {};
         }
 
-        function closeRoomWebSocket() {
-            if (roomWsReconnectTimer) { clearTimeout(roomWsReconnectTimer); roomWsReconnectTimer = null; }
-            if (roomWs) { roomWs.onclose = null; roomWs.close(); roomWs = null; }
-            roomWsReconnectDelay = 1000;
+        function closeRoomWebSocket(roomId) {
+            const state = roomWsMap.get(roomId);
+            if (!state) return;
+            if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+            if (state.ws) { state.ws.onclose = null; state.ws.close(); }
+            roomWsMap.delete(roomId);
+            roomMembersMap.delete(roomId);
+            roomMsgBuffers.delete(roomId);
         }
 
-        function handleRoomWSMessage(msg) {
-            // Only process if we're actually viewing this room
-            if (activeTabType !== 'room') return;
+        function getRoomWs(roomId) {
+            const state = roomWsMap.get(roomId);
+            return (state && state.ws && state.ws.readyState === WebSocket.OPEN) ? state.ws : null;
+        }
 
+        function handleRoomWSMessage(roomId, msg) {
+            const isActiveRoom = activeTabType === 'room' && activeTabRoomId === roomId;
+
+            // Always update member list for this room (even if not viewing)
+            if (msg.type === 'member_list') {
+                roomMembersMap.set(roomId, msg.members || []);
+                if (isActiveRoom) {
+                    roomMembers = roomMembersMap.get(roomId) || [];
+                    renderRoomMembersBar();
+                }
+                return;
+            }
+
+            // Always respond to pings
+            if (msg.type === 'ping') {
+                const ws = getRoomWs(roomId);
+                if (ws) ws.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
+
+            if (msg.type === 'connected') return;
+
+            // If this is the active room, render directly to DOM
+            if (isActiveRoom) {
+                renderRoomWSMessageToDOM(msg);
+                return;
+            }
+
+            // Non-active room: buffer complete messages for later display.
+            // For streaming, we accumulate and buffer only the final result.
+            switch (msg.type) {
+            case 'room_message':
+                bufferRoomMsg(roomId, renderRoomMessage(msg.sender_type, msg.sender_name, msg.text));
+                break;
+            case 'room_stream_start':
+                roomStreamingTexts[msg.request_id] = { text: '', sender_name: msg.sender_name, roomId };
+                break;
+            case 'room_stream_delta':
+                if (roomStreamingTexts[msg.request_id]) {
+                    roomStreamingTexts[msg.request_id].text += msg.text;
+                }
+                break;
+            case 'room_stream_done':
+                bufferRoomMsg(roomId, renderRoomMessage('agent', msg.sender_name, msg.text));
+                delete roomStreamingTexts[msg.request_id];
+                break;
+            case 'room_stream_error':
+                if (roomStreamingTexts[msg.request_id]) {
+                    delete roomStreamingTexts[msg.request_id];
+                }
+                bufferRoomMsg(roomId, `<div class="message assistant"><div class="message-bubble" style="color:var(--danger-color)">${esc(msg.error || 'Error')}</div></div>`);
+                break;
+            case 'error':
+                bufferRoomMsg(roomId, `<div class="message assistant"><div class="message-bubble" style="color:var(--danger-color)">${esc(msg.error || 'Error')}</div></div>`);
+                break;
+            }
+        }
+
+        // Render a room WS message directly into the active DOM
+        function renderRoomWSMessageToDOM(msg) {
             const area = document.getElementById('messagesArea');
             switch (msg.type) {
-            case 'connected':
-                break;
-            case 'member_list':
-                roomMembers = msg.members || [];
-                renderRoomMembersBar();
-                break;
             case 'room_message':
                 const loadDiv = area.querySelector('.loading-text');
                 if (loadDiv) loadDiv.remove();
@@ -2006,7 +2126,7 @@
                 area.scrollTop = area.scrollHeight;
                 break;
             case 'room_stream_start':
-                roomStreamingTexts[msg.request_id] = '';
+                roomStreamingTexts[msg.request_id] = { text: '', sender_name: msg.sender_name, roomId: activeTabRoomId };
                 area.innerHTML += `<div class="message assistant" style="max-width:90%" id="rstream-${msg.request_id}">
                     <div class="room-msg-sender agent-sender">${esc(msg.sender_name)}</div>
                     <div class="message-bubble"><span class="spinner"></span></div>
@@ -2014,10 +2134,12 @@
                 area.scrollTop = area.scrollHeight;
                 break;
             case 'room_stream_delta':
-                roomStreamingTexts[msg.request_id] = (roomStreamingTexts[msg.request_id] || '') + msg.text;
+                if (roomStreamingTexts[msg.request_id]) {
+                    roomStreamingTexts[msg.request_id].text += msg.text;
+                }
                 const dEl = document.getElementById('rstream-' + msg.request_id);
                 if (dEl) {
-                    dEl.querySelector('.message-bubble').textContent = roomStreamingTexts[msg.request_id];
+                    dEl.querySelector('.message-bubble').textContent = (roomStreamingTexts[msg.request_id] || {}).text || '';
                     area.scrollTop = area.scrollHeight;
                 }
                 break;
@@ -2042,12 +2164,12 @@
                 area.innerHTML += `<div class="message assistant"><div class="message-bubble" style="color:var(--danger-color)">${esc(msg.error || 'Error')}</div></div>`;
                 area.scrollTop = area.scrollHeight;
                 break;
-            case 'ping':
-                if (roomWs && roomWs.readyState === WebSocket.OPEN) {
-                    roomWs.send(JSON.stringify({ type: 'pong' }));
-                }
-                break;
             }
+        }
+
+        function bufferRoomMsg(roomId, html) {
+            if (!roomMsgBuffers.has(roomId)) roomMsgBuffers.set(roomId, []);
+            roomMsgBuffers.get(roomId).push(html);
         }
 
         function renderRoomMembersBar() {
