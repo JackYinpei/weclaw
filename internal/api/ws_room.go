@@ -341,9 +341,44 @@ func (rc *roomConn) dispatchMentions(message string) {
 	}
 }
 
+// buildRoomContext fetches recent room messages and formats them as context for the agent.
+// This allows each agent to see what other users and agents have said in the group chat.
+func (rc *roomConn) buildRoomContext(ctr *container.Container, agentName, message string) string {
+	msgs, err := rc.api.groupChatService.GetMessages(rc.roomID, 30)
+	if err != nil || len(msgs) == 0 {
+		return message
+	}
+
+	room, _ := rc.api.groupChatService.GetRoom(rc.roomID)
+	roomName := "Group Chat"
+	if room != nil && room.Name != "" {
+		roomName = room.Name
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("[群聊房间 \"%s\" 的对话上下文 — 你的身份: %s]\n", roomName, agentName))
+	sb.WriteString("以下是最近的对话记录，请基于这些上下文来理解和回复最新消息：\n\n")
+
+	for _, m := range msgs {
+		label := m.SenderName
+		if m.SenderType == "agent" {
+			label += " (Agent)"
+		}
+		// Truncate very long messages in context to save tokens
+		content := m.Content
+		if len(content) > 500 {
+			content = content[:500] + "..."
+		}
+		sb.WriteString(fmt.Sprintf("%s: %s\n", label, content))
+	}
+
+	sb.WriteString(fmt.Sprintf("\n[最新消息 — 来自 %s]\n%s", rc.username, message))
+	return sb.String()
+}
+
 // streamToAgent sends a message to an agent's container and broadcasts the streamed response.
 func (rc *roomConn) streamToAgent(ctr *container.Container, member groupchat.ChatRoomMember, message string) {
-	// In-flight guard per container
+	// In-flight guard per container (local to this roomConn)
 	key := ctr.ID
 	if _, loaded := rc.agentInFlight.LoadOrStore(key, true); loaded {
 		rc.sendJSON(roomWSOutgoing{
@@ -353,6 +388,17 @@ func (rc *roomConn) streamToAgent(ctr *container.Container, member groupchat.Cha
 		return
 	}
 	defer rc.agentInFlight.Delete(key)
+
+	// Global per-container stream guard: prevent concurrent SSE streams
+	// (e.g. private chat already streaming to this container)
+	if !acquireContainerStream(ctr.ID, fmt.Sprintf("room%d-acct%d", rc.roomID, member.AccountID)) {
+		rHub.broadcast(rc.roomID, roomWSOutgoing{
+			Type:  "error",
+			Error: fmt.Sprintf("%s 正在处理其他消息，请稍后再试", ctr.DisplayName),
+		})
+		return
+	}
+	defer releaseContainerStream(ctr.ID)
 
 	if ctr.ContainerID == "" || ctr.ContainerPort == 0 {
 		rHub.broadcast(rc.roomID, roomWSOutgoing{
@@ -396,7 +442,10 @@ func (rc *roomConn) streamToAgent(ctr *container.Container, member groupchat.Cha
 		prevRespID, _ = v.(string)
 	}
 
-	ch, err := rc.api.openclawClient.StreamMessage(rc.ctx, ctr.ContainerPort, ctr.GatewayToken, message, userID, prevRespID)
+	// Build context-enriched message so the agent can see the full group chat conversation
+	contextMessage := rc.buildRoomContext(ctr, agentName, message)
+
+	ch, err := rc.api.openclawClient.StreamMessage(rc.ctx, ctr.ContainerPort, ctr.GatewayToken, contextMessage, userID, prevRespID)
 	if err != nil {
 		rHub.broadcast(rc.roomID, roomWSOutgoing{
 			Type:      "room_stream_error",

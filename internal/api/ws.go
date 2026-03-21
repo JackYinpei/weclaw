@@ -38,6 +38,20 @@ type wsOutgoing struct {
 	Error       string `json:"error,omitempty"`
 }
 
+// --- Global per-container stream guard ---
+// Prevents concurrent SSE streams to the same container (from both private chat and room chat).
+// OpenClaw gateway may not handle concurrent /v1/responses requests to the same container gracefully.
+var containerStreamGuard sync.Map // containerID (uint) -> description (string)
+
+func acquireContainerStream(containerID uint, desc string) bool {
+	_, loaded := containerStreamGuard.LoadOrStore(containerID, desc)
+	return !loaded // true if acquired, false if already held
+}
+
+func releaseContainerStream(containerID uint) {
+	containerStreamGuard.Delete(containerID)
+}
+
 // --- Connection Hub ---
 
 type connHub struct {
@@ -320,6 +334,14 @@ func (wc *wsConn) handleSendMessage(message string, sessionTag string) {
 		}()
 
 		ctr := wc.container
+
+		// Global per-container stream guard: prevent concurrent SSE streams
+		// (e.g. room chat and private chat hitting the same container simultaneously)
+		if !acquireContainerStream(ctr.ID, fmt.Sprintf("private-acct%d", wc.accountID)) {
+			wc.sendJSON(wsOutgoing{Type: "stream_error", Error: "该 Agent 正在群聊中处理消息，请稍后再试"})
+			return
+		}
+		defer releaseContainerStream(ctr.ID)
 
 		if ctr.ContainerID == "" || ctr.ContainerPort == 0 {
 			wc.sendJSON(wsOutgoing{Type: "error", Error: "container has no Docker instance"})
