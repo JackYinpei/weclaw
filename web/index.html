@@ -752,6 +752,7 @@
         let wsReconnectDelay = 1000;
         let streamingRequestId = null;
         let streamingText = '';
+        let agentBusy = false;
 
         // --- Slash Commands ---
         const slashCommands = [
@@ -993,7 +994,9 @@
 
             // Reset gateway status and open WebSocket
             gatewayReady = false;
+            agentBusy = false;
             updateGatewayBadge(false);
+            updateAgentStatus(false);
             document.getElementById('sendBtn').disabled = true;
             openWebSocket(c.id);
 
@@ -1182,6 +1185,10 @@
             // Session mode
             if (!activeContainer || !gatewayReady) return;
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (agentBusy) {
+                alert('Agent 正在处理中，请等待当前任务完成');
+                return;
+            }
 
             const btn = document.getElementById('sendBtn');
             btn.disabled = true;
@@ -1217,6 +1224,16 @@
             } else {
                 badge.className = 'gateway-badge starting';
                 badge.innerHTML = '<span class="dot"></span> Gateway starting...';
+            }
+        }
+
+        function updateAgentStatus(busy) {
+            agentBusy = busy;
+            const btn = document.getElementById('sendBtn');
+            if (busy) {
+                btn.innerHTML = '<span class="spinner"></span> Working...';
+            } else {
+                btn.innerHTML = 'Send';
             }
         }
 
@@ -1280,7 +1297,7 @@
             case 'gateway_status':
                 gatewayReady = !!msg.ready;
                 updateGatewayBadge(gatewayReady);
-                if (gatewayReady && !streamingRequestId) {
+                if (gatewayReady && !streamingRequestId && !agentBusy) {
                     btn.disabled = false;
                 }
                 break;
@@ -1333,8 +1350,20 @@
                 btn.innerHTML = 'Send';
                 break;
 
+            case 'agent_status':
+                const isBusy = msg.status === 'busy';
+                updateAgentStatus(isBusy);
+                if (!isBusy && gatewayReady) {
+                    btn.disabled = false;
+                }
+                break;
+
             case 'error':
-                if (msg.error === 'message_in_flight') break;
+                if (msg.error === 'message_in_flight') {
+                    area.innerHTML += `<div class="message assistant"><div class="message-bubble" style="color:var(--warning-color)"><em>Agent 正在处理中，请稍候...</em></div></div>`;
+                    area.scrollTop = area.scrollHeight;
+                    break;
+                }
                 const errThink2 = document.getElementById('thinkingMsg');
                 if (errThink2) errThink2.remove();
                 area.innerHTML += `<div class="message assistant"><div class="message-bubble" style="color:var(--danger-color)">${esc(msg.error || 'Error')}</div></div>`;

@@ -36,6 +36,7 @@ type wsOutgoing struct {
 	Text        string `json:"text,omitempty"`
 	Ready       *bool  `json:"ready,omitempty"`
 	Error       string `json:"error,omitempty"`
+	Status      string `json:"status,omitempty"` // "idle" | "busy"
 }
 
 // --- Global per-container stream guard ---
@@ -331,9 +332,12 @@ func (wc *wsConn) handleSendMessage(message string, sessionTag string) {
 			wc.mu.Lock()
 			wc.inFlight = false
 			wc.mu.Unlock()
+			wc.sendJSON(wsOutgoing{Type: "agent_status", Status: "idle"})
 		}()
 
 		ctr := wc.container
+
+		wc.sendJSON(wsOutgoing{Type: "agent_status", Status: "busy"})
 
 		// Global per-container stream guard: prevent concurrent SSE streams
 		// (e.g. room chat and private chat hitting the same container simultaneously)
